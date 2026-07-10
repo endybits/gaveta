@@ -28,8 +28,13 @@ def test_version_matches_distribution_metadata() -> None:
 
 
 def test_cli_entry_point_runs(capsys: pytest.CaptureFixture[str]) -> None:
-    """Prove the `[project.scripts]` target is real, not just declared."""
-    main()
+    """Prove the `[project.scripts]` target is real, not just declared.
 
-    stdout = capsys.readouterr().out
-    assert gaveta.__version__ in stdout
+    Stage 0's `main()` printed the version. Stage 1's captures text, so the
+    version moved behind `--version`; the point of the test is unchanged.
+    """
+    with pytest.raises(SystemExit) as exit_info:
+        main(["--version"])
+
+    assert exit_info.value.code == 0
+    assert gaveta.__version__ in capsys.readouterr().out

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gaveta-cli"
-version = "0.0.1"
+version = "0.1.0"
 description = "Everything you need, right where you left it. A local-first, private knowledge drawer for developers."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,14 @@ classifiers = [
   "Topic :: Utilities",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+  # The capture model and its JSON Schema, which is the machine contract every
+  # later stage honors. Stage 7's FastAPI daemon requires pydantic regardless,
+  # so this is pulled forward, not added. See docs/adr/ADR-001-cli-framework.md.
+  "pydantic>=2",
+  # Render layer only: it formats output and has no say in argument parsing.
+  "rich>=13",
+]
 
 [project.urls]
 Homepage = "https://github.com/endybits/gaveta"

@@ -19,6 +19,9 @@ $ gaveta f "how did I connect to the qa database?"
 1. [command] SSH tunnel to qa RDS   →  gaveta show 42 · -c to copy
 ```
 
+☝️ That is the destination. **What actually runs today** is the Stage 1 walking
+skeleton — see [What works right now](#what-works-right-now).
+
 ## Security model (read this first)
 
 **Secrets never enter Gaveta.** A deterministic secret gate scans every capture
@@ -40,7 +43,54 @@ We are building in public, stage by stage, spec first. See
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for the roadmap and the current
 stage. Nothing below is stable until `v1.0.0`.
 
+## What works right now
+
+**Stage 1 — simulated capture. Persistence lands in Stage 2.** Gaveta accepts your text
+and prints exactly what it *would* save. Nothing is written to disk, no model runs, and
+there are no side effects beyond stdout.
+
+```
+$ gaveta "ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database"
+[gaveta] would save:
+  raw      : ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database
+  type     : unknown   (classification lands in Stage 4)
+  tags     : []
+  captured : 2026-07-09T14:03:11-05:00
+  source   : cli
+```
+
+Pipe it instead, with `-` or on its own — the two are equivalent:
+
+```
+$ echo "remember this" | gaveta -
+$ pbpaste | gaveta
+```
+
+`--json` emits the machine view: one JSON object per capture, on one line. This schema is
+the contract every later stage honors, and it is snapshot-tested, so it cannot drift by
+accident.
+
+```
+$ gaveta "x" --json
+{"raw":"x","source":"cli","captured_at":"2026-07-09T14:03:11-05:00","type":"unknown","tags":[]}
+```
+
+Two things worth knowing:
+
+- **Reserved words.** `ls`, `show`, `rm`, `export`, `retag`, `f`, `reindex`, `cred`,
+  `daemon`, and `ui` are reserved for the stages that implement them. `gaveta ls` exits
+  with a message naming its stage rather than capturing the word "ls". To capture one as
+  text, use `gaveta -- "ls"`.
+- **Text starting with a dash.** A bare `-L` looks like an option to any argument parser.
+  Quoted text with a space (`gaveta "ssh -L 5432"`) is fine; a lone dash token needs
+  `gaveta -- "-L"`, or pipe it in.
+
+Empty input (no argument, nothing piped) prints usage and exits `2`.
+
 ## Basic commands (target CLI)
+
+Not yet implemented — this is the destination, not today's behavior. See
+[What works right now](#what-works-right-now) for Stage 1.
 
 | Command | What it does |
 |---|---|
