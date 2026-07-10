@@ -1,0 +1,31 @@
+# gitleaks configuration for the Gaveta repo.
+#
+# Gaveta's whole job is to detect secrets, so its test corpus is a file full of strings
+# that are *designed to look like secrets* — AWS's public `AKIAIOSFODNN7EXAMPLE`, the
+# jwt.io sample token, provider-docs sample keys, and clearly synthetic values. None is a
+# live credential (see the header of tests/fixtures/secret_corpus.py). A naive scan would
+# flag every one, so this allowlist scopes those fixtures out — and *only* those fixtures,
+# narrowly by path, so a real secret committed anywhere else is still caught.
+#
+# `extend.useDefault = true` keeps gitleaks' full default ruleset active everywhere else.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures that intentionally contain look-alike secrets, plus canonical docs examples."
+
+# The corpus module and anything else under the fixtures directory. Scoped to this path
+# so it cannot mask a secret elsewhere in the repo.
+paths = [
+    '''tests/fixtures/secret_corpus\.py''',
+    '''tests/fixtures/.*''',
+]
+
+# The canonical documentation examples, allowed by value in case they appear in docs or
+# tests outside the fixtures path (e.g. an example in the README or ADR-003).
+regexes = [
+    '''AKIAIOSFODNN7EXAMPLE''',
+    # The jwt.io default sample token (HS256, HMAC "your-256-bit-secret").
+    '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJzdWIiOiIxMjM0NTY3ODkw.*''',
+]
