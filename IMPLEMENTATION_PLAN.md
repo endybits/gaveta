@@ -16,8 +16,12 @@ Definition of Done checklist is complete.
    function must never exist in the codebase (enforced by an architecture test).
 3. **Core is the product; interfaces are clients.** CLI, Web UI, and MCP all talk to
    the same core API. Nothing interface-specific leaks into the core.
-4. **Clean history.** Conventional commits, one stage per branch, squash-merged,
-   tagged at every stage close.
+4. **History is part of the product.** Conventional commits, one stage per branch,
+   **rebase-merged** so every commit survives on `main`, tagged at every stage close.
+   The sequence *is* the argument: an ADR lands before the code it justifies, a new
+   dependency is its own reviewable diff. Squashing a stage into one blob throws that
+   away and leaves only the outcome. Corollary: **every commit on a stage branch must
+   leave the tree green**, because rebase replays each one onto `main` individually.
 
 ---
 
@@ -28,7 +32,7 @@ Definition of Done checklist is complete.
 | Language | All code, comments, docstrings, and docs in **English** |
 | License | Apache 2.0 |
 | Commits | [Conventional Commits](https://www.conventionalcommits.org/) — `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:` |
-| Branches | `stage/N-short-name` (e.g. `stage/1-simulated-capture`), squash-merge to `main` |
+| Branches | `stage/N-short-name` (e.g. `stage/1-simulated-capture`), **rebase-merge** to `main`; every commit must leave the tree green |
 | Tags | `v0.N.0` at each stage close (stage number = minor version until 1.0) |
 | Tests | `pytest`; every stage adds tests; CI must be green to merge |
 | Style | `ruff` (lint + format), `mypy --strict` on `src/` |
@@ -361,5 +365,14 @@ every outbound payload (second chance for the gate).
    version (`docs: release vX.Y.Z changelog`). Doing this after the merge would mean a
    direct commit on `main`, outside a PR — which this flow forbids and branch protection
    blocks outright.
-6. Squash-merge PR (PR description = spec + DoD checklist, even solo — it's the
-   project's narrative history). Then tag the merge commit on `main` and push the tag.
+6. **Rebase-merge** the PR (PR description = spec + DoD checklist, even solo). Every commit
+   replays onto `main` with a new SHA, so `main` stays linear *and* keeps the stage's
+   reasoning. Then tag and push.
+
+   Rebase-merge produces **no merge commit**: the branch's last commit —
+   `chore: release vX.Y.Z` from step 5 — becomes `main`'s tip, and that is what gets tagged.
+   The tag therefore points at the commit that sets the version, which is what you want.
+
+   Because each commit lands on `main` on its own, each must be green on its own. CI only
+   gates the PR head, so this is a discipline, not a check: don't commit a broken
+   intermediate state intending to fix it two commits later.

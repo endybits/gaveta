@@ -14,7 +14,7 @@ runs until the stage that introduces it has landed.
 `IMPLEMENTATION_PLAN.md` is the contract, not a wishlist. Every change maps to a numbered stage there. Each stage has a **Spec**, **Scope**, explicit **Out of scope**, **Tests**, **Docs**, and a **Definition of Done** checklist — a stage is not done until its DoD boxes are checked.
 
 - If a request isn't covered by a stage, the plan changes first, as its own explicit commit. Don't silently implement ahead of the plan.
-- Work happens on `stage/N-short-name` (or `fix/short-name`), squash-merged to `main`, tagged at stage close: `v0.0.1` for Stage 0, `v0.N.0` for Stages 1–10.
+- Work happens on `stage/N-short-name` (or `fix/short-name`), **rebase-merged** to `main`, tagged at stage close: `v0.0.1` for Stage 0, `v0.N.0` for Stages 1–10. Rebase, not squash: the commit sequence is the project's narrative (ADR before the code it justifies, one dependency per reviewable diff), and squashing discards it. Two consequences — **every commit must leave the tree green**, since each replays onto `main` individually; and there is **no merge commit**, so the tag goes on `chore: release vX.Y.Z`, which becomes `main`'s tip.
 - Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`), enforced by pre-commit.
 - Everything in the repo is written in English — code, comments, docstrings, commits, docs.
 - Behavior change ⇒ README/docs and `CHANGELOG.md` (under *Unreleased*) change in the same PR.
