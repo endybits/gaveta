@@ -149,6 +149,15 @@ past all three still cannot leave your machine, because layer 4 gives it nowhere
 The honest summary: Gaveta makes storing a secret hard and loud, assumes it will sometimes
 fail, and ensures that when it does, the secret still cannot leave your machine.
 
+## A note on the test corpus
+
+The gate is tested against a corpus of strings *shaped* like secrets. They are public
+documentation examples or clearly synthetic values — never live credentials — and some are
+defanged or assembled at runtime so the repo stays clean under a secret scanner (GitHub's
+push protection matches provider prefixes and honors no repo config). The rules for adding
+to it are in [`CONTRIBUTING.md`](../CONTRIBUTING.md#6-security-is-a-hard-boundary), under
+fixture hygiene.
+
 ## Exit codes
 
 | Code | Meaning |
