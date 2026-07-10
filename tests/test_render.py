@@ -11,8 +11,10 @@ from datetime import UTC, datetime
 import pytest
 
 from gaveta.db.models import ItemType
+from gaveta.gate import Finding, Level, Verdict
 from gaveta.models import ItemView
 from gaveta.render import (
+    render_blocked,
     render_item,
     render_json,
     render_json_list,
@@ -53,6 +55,39 @@ def test_saved_uses_the_enum_value_not_its_repr() -> None:
 
     assert "command" in saved
     assert "ItemType" not in saved
+
+
+def test_saved_marks_a_redacted_capture() -> None:
+    assert render_saved(_view(id=7), redacted=True) == (
+        "✓ saved · id 7 · type unknown · redacted"
+    )
+
+
+def test_saved_omits_the_marker_when_nothing_was_redacted() -> None:
+    assert "redacted" not in render_saved(_view(id=7), redacted=False)
+
+
+# --- render_blocked: the ✋ refusal -------------------------------------------
+
+
+def test_blocked_names_the_detected_secret_and_the_escape_hatch() -> None:
+    verdict = Verdict(
+        level=Level.blocked,
+        findings=(Finding("aws_access_key", 12, 32, "an AWS access key"),),
+    )
+    message = render_blocked(verdict)
+
+    assert "blocked" in message
+    assert "an AWS access key" in message  # names what was found
+    assert "Secrets never enter Gaveta" in message  # states the principle
+    assert "--redact" in message  # offers the escape hatch that works now
+
+
+def test_blocked_falls_back_when_a_verdict_carries_no_label() -> None:
+    """Defensive: a blocked verdict with no findings still produces a sane message."""
+    message = render_blocked(Verdict(level=Level.blocked))
+
+    assert "a secret" in message
 
 
 # --- render_removed: the idempotent delete message ---------------------------
