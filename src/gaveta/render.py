@@ -15,6 +15,7 @@ from io import StringIO
 
 from rich.console import Console
 
+from gaveta.gate import Verdict
 from gaveta.models import ItemView
 
 # The detail view's labels, in display order. `created_at` is shown as `created`: the
@@ -77,13 +78,38 @@ def render_json_list(items: list[ItemView]) -> str:
     return json.dumps([json.loads(item.model_dump_json()) for item in items], indent=2)
 
 
-def render_saved(item: ItemView) -> str:
+def render_saved(item: ItemView, *, redacted: bool = False) -> str:
     """The confirmation. Capture is the hot path, and the happy path is now boring.
 
     Stage 1 printed five lines describing a save that never happened. It happens now, so
-    the only news is the id the drawer assigned.
+    the only news is the id the drawer assigned — plus, when `--redact` rewrote the raw
+    before storing, a `· redacted` marker so the user knows the stored text is not what
+    they typed.
     """
-    return f"✓ saved · id {item.id} · type {item.type.value}"
+    suffix = " · redacted" if redacted else ""
+    return f"✓ saved · id {item.id} · type {item.type.value}{suffix}"
+
+
+def render_blocked(verdict: Verdict) -> str:
+    """The ✋ refusal. Names what was detected, states the rule, points to the vault.
+
+    The vault flow (`gaveta cred --new`) lands for real in Stage 6; today the message
+    names it as the upcoming path, and offers `--redact` as the escape hatch that works
+    now. `verdict.findings` carries the human label the block reads back.
+    """
+    labels = _unique_labels(verdict)
+    detected = labels[0] if labels else "a secret"
+    return (
+        f"✋ blocked: input contains what looks like {detected}.\n"
+        "   Secrets never enter Gaveta. Store it in your vault and save a reference\n"
+        "   instead — that flow lands in a later release (gaveta cred --new).\n"
+        "   To keep this capture now with the secret masked:  gaveta --redact"
+    )
+
+
+def _unique_labels(verdict: Verdict) -> list[str]:
+    """The distinct finding labels, in first-seen order. `dict` preserves insertion."""
+    return list(dict.fromkeys(f.label for f in verdict.findings))
 
 
 def render_removed(item_id: int, existed: bool) -> str:

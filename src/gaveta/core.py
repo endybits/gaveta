@@ -12,31 +12,51 @@ caller's decision, and it is what lets the tests drive the core without a subpro
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from gaveta import gate
 from gaveta.db.models import Item, ItemType
+from gaveta.gate import Verdict
 from gaveta.mapping import now_utc, to_item, to_view
 from gaveta.models import CaptureRequest, ItemView
 
 
-def capture(raw: str, *, session: Session) -> ItemView:
+class BlockedCapture(Exception):
+    """A capture was refused because it contains a known-format secret.
+
+    Carries the `Verdict` so the caller can name what was detected and choose an exit
+    code. Raised by `capture` before anything is written; the interface (the CLI today,
+    the daemon and MCP server later) translates it into a message and a return code.
+    """
+
+    def __init__(self, verdict: Verdict) -> None:
+        self.verdict = verdict
+        super().__init__("capture blocked: input contains a secret")
+
+
+def capture(raw: str, *, session: Session, redact: bool = False) -> ItemView:
     """Persist a capture and return it, with the id the database assigned.
 
-    The pipeline, in order. The order is the security property.
+    The pipeline, in order. The order is the security property: `gate.scan` runs before
+    `to_item`, before `session.add`, before anything reaches disk — and, from Stage 4,
+    before any model sees the text.
+
+    `redact` is checked *before* `blocked`: `--redact` is the sanctioned way to keep a
+    detected secret safely, so the `[REDACTED]` text is persisted and the raw secret is
+    not. The invariant is therefore *nothing blocked reaches disk unredacted*: a blocked
+    capture without redaction raises `BlockedCapture` and writes nothing. A `suspicious`
+    verdict is never fatal here: adjudicating it needs a prompt, which is the caller's
+    job, not the core's. See ADR-003.
     """
     request = CaptureRequest(raw=raw, captured_at=now_utc())
 
-    # ─────────────────────────────────────────────────────────────────────────────
-    # Stage 3 inserts the secret gate HERE:
-    #
-    #     verdict = gate.scan(request.raw)
-    #     if verdict.blocked: ...
-    #
-    # It runs before `to_item`, before `session.add`, before anything reaches the
-    # disk — and, from Stage 4 onward, before any model sees the text. A pipeline-
-    # order test will assert exactly that against this function. Nothing that
-    # touches the raw text may be added above this line.
-    # ─────────────────────────────────────────────────────────────────────────────
+    verdict = gate.scan(request.raw)
+    if redact:
+        text = gate.redact(request.raw, verdict)
+    elif verdict.blocked:
+        raise BlockedCapture(verdict)
+    else:
+        text = request.raw
 
-    item = to_item(request)
+    item = to_item(request.model_copy(update={"raw": text}))
     session.add(item)
     session.commit()
     session.refresh(item)
