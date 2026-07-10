@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # `uv sync --frozen` fails on a stale uv.lock instead of silently re-resolving.
+  UV_FROZEN: "1"
+
+# The three jobs run in parallel. "lint -> mypy -> pytest" is an ordering of
+# severity, not of execution: the merge gate is that all three pass, and branch
+# protection enforces that. Running them concurrently returns feedback sooner.
+jobs:
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check --output-format=github .
+      - run: uv run ruff format --check .
+
+  typecheck:
+    name: typecheck (mypy --strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run mypy --strict src/
+
+  test:
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run pytest
