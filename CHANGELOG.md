@@ -9,6 +9,13 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-10
+
+Stage 3 — the secret gate. A deterministic detector scans every capture *before* it is
+written (and before any model in later stages sees it): known-format secrets are rejected,
+ambiguous ones ask, and `--redact` masks what you choose to keep. Layers 1 and 3 of the
+four-layer security model, documented honestly in `docs/security-model.md`.
+
 ### Added
 
 - **The secret gate.** A deterministic detector, `gate.scan(raw) -> Verdict`, runs *first*
@@ -141,7 +148,8 @@ Stage 0 — scaffolding & governance. No product behavior yet: `gaveta` prints i
 - The version is read from installed distribution metadata rather than duplicated as a
   literal, so `pyproject.toml` is the single source of truth.
 
-[Unreleased]: https://github.com/endybits/gaveta/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/endybits/gaveta/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/endybits/gaveta/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/endybits/gaveta/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/endybits/gaveta/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/endybits/gaveta/releases/tag/v0.0.1
