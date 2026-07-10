@@ -75,8 +75,10 @@ $ gaveta "x" --json
 {"raw":"x","source":"cli","captured_at":"2026-07-09T14:03:11-05:00","type":"unknown","tags":[]}
 ```
 
-Two things worth knowing:
+Three things worth knowing:
 
+- **`gv` is an alias for `gaveta`.** Both commands are installed and point at the same
+  entry point, so `gv "some text"` is the capture path with less typing.
 - **Reserved words.** `ls`, `show`, `rm`, `export`, `retag`, `f`, `reindex`, `cred`,
   `daemon`, and `ui` are reserved for the stages that implement them. `gaveta ls` exits
   with a message naming its stage rather than capturing the word "ls". To capture one as

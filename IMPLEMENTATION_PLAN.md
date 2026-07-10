@@ -36,7 +36,7 @@ Definition of Done checklist is complete.
 | Tags | `v0.N.0` at each stage close (stage number = minor version until 1.0) |
 | Tests | `pytest`; every stage adds tests; CI must be green to merge |
 | Style | `ruff` (lint + format), `mypy --strict` on `src/` |
-| Python | 3.11+ · package name on PyPI: `gaveta-cli` · installed command: `gaveta` |
+| Python | 3.11+ · package name on PyPI: `gaveta-cli` · installed commands: `gaveta` and `gv` (alias, same entry point) |
 | Environment | `uv` (`uv sync`, `uv run …`); `uv.lock` is committed. `pip install -e ".[dev]"` remains supported |
 | Layout | `src/gaveta/` layout, `tests/`, `docs/` |
 
