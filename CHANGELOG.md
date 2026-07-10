@@ -9,6 +9,8 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-07-10
+
 Stage 1 — simulated capture (the walking skeleton). `gaveta "text"` shows what it *would*
 save. Nothing is persisted; no model runs. This stage fixes the capture contract that
 every later stage must honor.
@@ -66,5 +68,6 @@ Stage 0 — scaffolding & governance. No product behavior yet: `gaveta` prints i
 - The version is read from installed distribution metadata rather than duplicated as a
   literal, so `pyproject.toml` is the single source of truth.
 
-[Unreleased]: https://github.com/endybits/gaveta/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/endybits/gaveta/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/endybits/gaveta/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/endybits/gaveta/releases/tag/v0.0.1
