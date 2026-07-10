@@ -5,7 +5,6 @@ migrated SQLite database under the per-test `GAVETA_HOME`, because the thing wor
 testing is what actually lands on disk.
 """
 
-import inspect
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +12,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from gaveta import core
+from gaveta.core import BlockedCapture
 from gaveta.db.models import Item, ItemType
 from gaveta.db.session import session as db_session
 from gaveta.mapping import require_aware, to_item, to_view
@@ -64,27 +64,76 @@ def test_a_crud_roundtrip_preserves_the_raw_text(session: Session) -> None:
     assert fetched == saved
 
 
-# --- the Stage 3 seam --------------------------------------------------------
+# --- the secret gate: the pipeline order is the security property ------------
 
 
-def test_the_gate_seam_precedes_persistence_in_capture() -> None:
-    """Stage 3 inserts `gate.scan()` into `capture`, before anything is written.
+def test_a_blocked_capture_raises_and_writes_nothing(session: Session) -> None:
+    """A known-format secret is refused before persistence: the drawer stays empty."""
+    before = len(core.list_items(session=session))
 
-    The seam is a comment today, so this asserts the *shape* Stage 3 relies on: the
-    marker exists, and it sits above the first line that touches the database. When the
-    gate lands, this test is replaced by a real pipeline-order assertion.
+    with pytest.raises(BlockedCapture) as excinfo:
+        core.capture("deploy key: AKIAIOSFODNN7EXAMPLE", session=session)
+
+    assert excinfo.value.verdict.blocked
+    assert len(core.list_items(session=session)) == before
+
+
+def test_the_gate_runs_before_session_add(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """gate.scan must fire before anything touches the DB — the order is the property.
+
+    Records call order: `scan` is wrapped to append to a list, `Session.add` likewise.
+    A blocked capture must have called `scan` and *never* reached `add`.
     """
-    source, _ = inspect.getsourcelines(core.capture)
-    body = [line.strip() for line in source]
+    calls: list[str] = []
+    real_scan = core.gate.scan
 
-    seam = next(
-        i for i, line in enumerate(body) if "Stage 3 inserts the secret gate" in line
-    )
-    first_write = next(
-        i for i, line in enumerate(body) if line.startswith("session.add")
+    def recording_scan(raw: str) -> object:
+        calls.append("scan")
+        return real_scan(raw)
+
+    def recording_add(self: Session, obj: object, *a: object, **k: object) -> None:
+        calls.append("add")
+
+    monkeypatch.setattr(core.gate, "scan", recording_scan)
+    monkeypatch.setattr(Session, "add", recording_add)
+
+    with pytest.raises(BlockedCapture):
+        core.capture("AKIAIOSFODNN7EXAMPLE", session=session)
+
+    assert calls == ["scan"], f"expected scan and no add, got {calls}"
+
+
+def test_a_redacted_blocked_capture_persists_without_the_secret(
+    session: Session,
+) -> None:
+    """redact=True saves [REDACTED] text; the invariant is *unredacted*, not *never*."""
+    view = core.capture(
+        "deploy key: AKIAIOSFODNN7EXAMPLE", session=session, redact=True
     )
 
-    assert seam < first_write, "the secret gate seam must precede persistence"
+    assert "AKIAIOSFODNN7EXAMPLE" not in view.raw
+    assert "[REDACTED]" in view.raw
+    # It really landed.
+    fetched = core.get_item(view.id, session=session)
+    assert fetched is not None
+    assert "AKIAIOSFODNN7EXAMPLE" not in fetched.raw
+
+
+def test_redact_of_a_clean_capture_saves_it_unchanged(session: Session) -> None:
+    """redact=True with no findings is the identity: the text is stored as typed."""
+    raw = "totally normal note about lunch"
+    view = core.capture(raw, session=session, redact=True)
+
+    assert view.raw == raw
+
+
+def test_a_suspicious_capture_is_not_blocked_by_the_core(session: Session) -> None:
+    """Adjudicating `suspicious` needs a prompt — the core saves it; the CLI decides."""
+    view = core.capture("password: MargaritaVerde2024!", session=session)
+
+    assert view.raw == "password: MargaritaVerde2024!"
 
 
 # --- list_items --------------------------------------------------------------

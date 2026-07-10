@@ -12,14 +12,29 @@ import argparse
 import sys
 from collections.abc import Callable
 
-from gaveta import __version__, core
+from gaveta import __version__, core, gate
 from gaveta.commands import implemented_head, reserved_head, reserved_message
 from gaveta.db.session import session as db_session
 from gaveta.exit_codes import ExitCode
-from gaveta.render import render_json, render_saved
+from gaveta.gate import Verdict
+from gaveta.render import render_blocked, render_json, render_saved
 from gaveta.subcommands import DISPATCH
 
 _STDIN_TOKEN = "-"
+
+# What the tty prompt tells the user when a value is only *maybe* a secret.
+_SUSPICIOUS_PROMPT = (
+    "⚠ this looks like it might contain a secret.\n"
+    "  [v]ault (refuse) · [r]edact · [s]ave anyway ? "
+)
+
+# Shown when a suspicious value arrives over a pipe, where we cannot prompt. Names the
+# two escape hatches so a script is never left guessing (ADR-003).
+_SUSPICIOUS_NON_TTY = (
+    "✋ blocked: input may contain a secret, and there is no terminal to confirm.\n"
+    "   Re-run in a terminal to choose, or keep it now with the secret masked:\n"
+    "     gaveta --redact -"
+)
 
 _DESCRIPTION = "Capture text into your drawer, or manage what you have captured."
 
@@ -48,6 +63,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="json_out",
         help="emit the saved item as one JSON object instead of the confirmation",
+    )
+    parser.add_argument(
+        "--redact",
+        action="store_true",
+        help="mask any detected secret with [REDACTED] and save the rest",
     )
     parser.add_argument("--version", action="version", version=f"gaveta {__version__}")
     return parser
@@ -103,15 +123,105 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(tokens)
 
+    # Whether a real person is at the keyboard, decided *before* stdin may be drained by
+    # `_resolve_raw`. It is what tells the suspicious branch it may prompt.
+    interactive = sys.stdin.isatty()
+
     raw = _resolve_raw(args.text, sys.stdin.read, sys.stdin.isatty())
     if raw is None:
         parser.print_usage(sys.stderr)
         print("\n[gaveta] nothing to capture.", file=sys.stderr)
         return ExitCode.USAGE
 
-    with db_session() as session:
-        saved = core.capture(raw, session=session)
+    return _capture(
+        raw,
+        redact=args.redact,
+        json_out=args.json_out,
+        interactive=interactive,
+        prompt=_prompt_choice,
+    )
 
-    view = render_json(saved) if args.json_out else render_saved(saved)
+
+def _prompt_choice() -> str:
+    """Ask the [v/r/s] question and return the raw answer. `EOFError` → refuse.
+
+    Isolated behind a name so the tests can inject a fake and drive every branch of the
+    suspicious matrix without a real terminal — the same trick `_resolve_raw` uses for
+    stdin. On EOF (piped stdin exhausted, `Ctrl-D`) we return `"v"`: never save on an
+    answer that never came.
+    """
+    try:
+        return input(_SUSPICIOUS_PROMPT)
+    except EOFError:
+        return "v"
+
+
+def _capture(
+    raw: str,
+    *,
+    redact: bool,
+    json_out: bool,
+    interactive: bool,
+    prompt: Callable[[], str],
+) -> int:
+    """The capture path, gate and all. Returns the exit code.
+
+    `--redact` pre-empts everything: it is the user declaring the choice, so it applies
+    before the tty branch and saves the masked text (exit 0). Otherwise the verdict
+    decides: `blocked` refuses (exit 3); `suspicious` prompts when a terminal is present
+    and refuses otherwise; `clean` saves with no friction. Core re-enforces the block
+    invariant regardless, so a bug here can never persist a known secret unredacted.
+    """
+    if redact:
+        return _save(raw, redact=True, json_out=json_out)
+
+    verdict = gate.scan(raw)
+    if verdict.blocked:
+        print(render_blocked(verdict), file=sys.stderr)
+        return ExitCode.BLOCKED
+    if verdict.suspicious:
+        return _resolve_suspicious(
+            raw, verdict, json_out=json_out, interactive=interactive, prompt=prompt
+        )
+    return _save(raw, redact=False, json_out=json_out)
+
+
+def _resolve_suspicious(
+    raw: str,
+    verdict: Verdict,
+    *,
+    json_out: bool,
+    interactive: bool,
+    prompt: Callable[[], str],
+) -> int:
+    """A maybe-secret. Ask the human if we can; refuse with an escape hatch if not."""
+    if not interactive:
+        print(_SUSPICIOUS_NON_TTY, file=sys.stderr)
+        return ExitCode.BLOCKED
+
+    choice = prompt().strip().lower()[:1]
+    if choice == "s":
+        return _save(raw, redact=False, json_out=json_out)
+    if choice == "r":
+        return _save(raw, redact=True, json_out=json_out)
+    # "v", empty, or anything unrecognized → refuse. Saving is opt-in, not the default.
+    print(render_blocked(verdict), file=sys.stderr)
+    return ExitCode.BLOCKED
+
+
+def _save(raw: str, *, redact: bool, json_out: bool) -> int:
+    """Persist through the core and print the confirmation. Exit 0.
+
+    The `· redacted` marker reflects whether the stored text actually differs from what
+    was typed — `--redact` on a clean note masks nothing, and claiming otherwise would
+    mislead. The stored `raw` comes back on the view, so the comparison is exact.
+    """
+    with db_session() as session:
+        saved = core.capture(raw, session=session, redact=redact)
+
+    was_redacted = redact and saved.raw != raw
+    view = (
+        render_json(saved) if json_out else render_saved(saved, redacted=was_redacted)
+    )
     sys.stdout.write(view if view.endswith("\n") else view + "\n")
     return ExitCode.OK
