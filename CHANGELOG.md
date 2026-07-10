@@ -9,6 +9,12 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-10
+
+Stage 2 — real persistence. Captures are stored in a local SQLite database, and
+`ls`/`show`/`rm`/`export` let you manage them. Schema changes go only through Alembic
+migrations, from the first one.
+
 ### Added
 
 - **Persistence.** Captures are saved to a local SQLite database at `~/.gaveta/gaveta.db`
@@ -105,6 +111,7 @@ Stage 0 — scaffolding & governance. No product behavior yet: `gaveta` prints i
 - The version is read from installed distribution metadata rather than duplicated as a
   literal, so `pyproject.toml` is the single source of truth.
 
-[Unreleased]: https://github.com/endybits/gaveta/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/endybits/gaveta/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/endybits/gaveta/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/endybits/gaveta/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/endybits/gaveta/releases/tag/v0.0.1
