@@ -9,6 +9,10 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+### Changed
+
+- spec: Stage 4 gains content extraction; Stage 5 `-c` copies content.
+
 ## [0.2.0] — 2026-07-10
 
 Stage 2 — real persistence. Captures are stored in a local SQLite database, and
