@@ -99,6 +99,28 @@ appears. Do not work around it — the absence of that API *is* the security pro
 Likewise, the secret gate runs *first* in the capture pipeline, before persistence and
 before any model sees the input. A pipeline-order test asserts this.
 
+**Fixture hygiene — test secrets must be defanged or runtime-assembled.** The gate's test
+corpus (`tests/fixtures/secret_corpus.py`, reused by the Stage 9 MCP redaction pass) is
+full of strings *shaped* like secrets. They must be public documentation examples (AWS's
+`AKIAIOSFODNN7EXAMPLE`, the jwt.io sample) or clearly synthetic — never a real-looking
+generated token. Two hard-won rules:
+
+- **GitHub push protection matches provider *prefixes* server-side and honors no repo
+  config.** It fires on `xoxb-`, `sk_live_`, `AKIA…`, etc. regardless of the body — a fake
+  `sk_live_EXAMPLENOTREAL…` is still blocked, and `.gitleaks.toml` does **not** apply to it.
+  So a scanner-clean repo cannot be achieved by an allowlist alone.
+- **Never commit a whole provider-prefixed literal, even a canonical doc example**, unless
+  GitHub itself allowlists it (it does for a handful, like `AKIAIOSFODNN7EXAMPLE`). Defang
+  the body (`xoxb-EXAMPLE-NOT-REAL-…`) *and*, where the prefix alone trips the scanner
+  (Stripe), **assemble the value at runtime** so the literal never appears whole in source
+  (`f"sk{_LIVE}…"`). The gate scans the assembled string exactly as it would a real one, so
+  detection is unchanged. `.gitleaks.toml` allowlists the fixtures path as a second layer,
+  not the only one.
+
+If a push is rejected for a secret, do not `--force` past it or unblock via the URL — fix
+the fixture so no commit contains the literal (rewrite the introducing commit, not a patch
+on top), then re-push.
+
 ### 7. Small PRs, honest descriptions
 
 A PR description states what the spec asked, what you did, how you tested it, and carries
