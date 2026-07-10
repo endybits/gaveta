@@ -1,5 +1,9 @@
 # Gaveta
 
+[![CI](https://github.com/endybits/gaveta/actions/workflows/ci.yml/badge.svg)](https://github.com/endybits/gaveta/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+
 > Everything you need, right where you left it.
 
 **Gaveta** (Spanish for *drawer* — the one where you keep the things you reach for
@@ -76,24 +80,13 @@ pip install -e ".[dev]" && pre-commit install && pytest
 
 ## Contributing
 
-Contributions are welcome from day zero — but so are the rules, from day zero:
+Contributions are welcome from day zero — but so are the rules, from day zero. They are
+short, and they are non-negotiable: spec first, English everywhere, Conventional Commits,
+tests with every PR, docs in the same PR, and security as a hard boundary (no code path may
+ever return, log, or persist a secret value).
 
-1. **Spec first.** Every change maps to a stage in
-   [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md). If your idea isn't covered,
-   open an issue proposing the spec change before writing code.
-2. **English everywhere in the repo.** Code, comments, docstrings, commit messages,
-   and docs are written in English.
-3. **Conventional Commits.** `feat:`, `fix:`, `docs:`, `test:`, `refactor:`,
-   `chore:`. Enforced by pre-commit. Branches: `stage/N-name` or `fix/short-name`.
-4. **Tests are not optional.** Every PR adds or updates tests; CI (lint → mypy →
-   pytest) must be green. Coverage must not decrease.
-5. **Docs close the loop.** If behavior changed, the README/docs and `CHANGELOG.md`
-   (under *Unreleased*) change in the same PR.
-6. **Security is a hard boundary.** No PR may introduce a code path where a secret
-   value is returned, logged, or persisted. The architecture tests enforce the
-   absence of `get_secret`-style APIs — do not fight them.
-7. **Small PRs, honest descriptions.** PR description = what the spec asked,
-   what you did, how you tested it, and the stage's DoD checklist.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a PR, and
+[`CHANGELOG.md`](CHANGELOG.md) for what has landed.
 
 By contributing you agree that your contributions are licensed under Apache 2.0.
 
