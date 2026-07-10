@@ -10,6 +10,7 @@ the stable contract, and pinning human strings here would make every wording twe
 test edit. The human confirmation has its own tests in test_render.py.
 """
 
+import contextlib
 import io
 import json
 from typing import TextIO
@@ -17,7 +18,7 @@ from typing import TextIO
 import pytest
 
 from gaveta.cli import main
-from gaveta.commands import SUBCOMMANDS
+from gaveta.commands import IMPLEMENTED, RESERVED, SUBCOMMANDS
 from gaveta.models import ItemView
 
 
@@ -175,11 +176,8 @@ def test_whitespace_only_argument_is_nothing_to_capture(
 
 # --- Row 2: reserved first token ---------------------------------------------
 
-# Every command not yet implemented. ls/show/rm/export leave this set when they land.
-_RESERVED_NOW = sorted(SUBCOMMANDS)
 
-
-@pytest.mark.parametrize("name", _RESERVED_NOW)
+@pytest.mark.parametrize("name", sorted(RESERVED))
 def test_reserved_word_alone_exits_two(
     tty_stdin: _FakeStdin, capsys: pytest.CaptureFixture[str], name: str
 ) -> None:
@@ -187,16 +185,33 @@ def test_reserved_word_alone_exits_two(
 
     err = capsys.readouterr().err
     assert f"'{name}' is a reserved command" in err
-    assert f"Stage {SUBCOMMANDS[name]}" in err
+    assert f"Stage {RESERVED[name]}" in err
 
 
-@pytest.mark.parametrize("name", _RESERVED_NOW)
+@pytest.mark.parametrize("name", sorted(RESERVED))
 def test_reserved_word_with_trailing_tokens_exits_two(
     tty_stdin: _FakeStdin, capsys: pytest.CaptureFixture[str], name: str
 ) -> None:
-    """The rule tests tokens[0], not the sole token: `gaveta ls links` is reserved."""
+    """The rule tests tokens[0], not the sole token: `gaveta f my query` is reserved."""
     assert main([name, "extra", "tokens"]) == 2
     assert f"'{name}' is a reserved command" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", sorted(IMPLEMENTED))
+def test_implemented_word_is_not_treated_as_reserved(
+    tty_stdin: _FakeStdin, capsys: pytest.CaptureFixture[str], name: str
+) -> None:
+    """ls/show/rm/export dispatch now; none may print the reserved-word message.
+
+    `show`/`rm` without an id raise argparse's own SystemExit, so this asserts the
+    *reserved* path is gone rather than any particular exit code.
+    """
+    # show/rm without an id raise argparse's own SystemExit; that is still not the
+    # reserved path, which is what this test is about.
+    with contextlib.suppress(SystemExit):
+        main([name])
+
+    assert "reserved command" not in capsys.readouterr().err
 
 
 def test_quoted_text_beginning_with_a_reserved_word_is_captured(
