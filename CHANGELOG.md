@@ -9,8 +9,34 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+### Added
+
+- **The secret gate.** A deterministic detector, `gate.scan(raw) -> Verdict`, runs *first*
+  in the capture pipeline — before persistence, and before any model in later stages.
+  Known-format secrets (AWS keys, GitHub/Slack/Stripe tokens, PEM private-key headers,
+  `user:pass@` connection URLs, JWTs) are **rejected with exit code `3`** and a message
+  pointing at the vault flow (which lands for real in Stage 6). Patterns borrowed in shape
+  from gitleaks/trufflehog.
+- **High-entropy and context-word detection.** A long high-entropy token, or a value beside
+  a bilingual keyword (`password`, `token`, `clave`, `contraseña`, …), rates *suspicious*
+  and asks before saving — `[v]ault / [r]edact / [s]ave anyway` at a terminal. Over a pipe,
+  where there is no terminal, a suspicious value is **blocked** rather than saved silently
+  or hung on; the message names `--redact` and re-running interactively as the escape hatches.
+- **`--redact`** masks each detected secret with `[REDACTED]` and saves the rest, from any
+  source. It is the one path by which a detected secret may be stored — because the secret
+  itself is not.
+- [`docs/security-model.md`](docs/security-model.md): the four-layer defense (deterministic
+  gate + contextual model + human confirmation + local-first containment), honest limits
+  (no detector has 100% recall), and the exit-code table. Linked prominently from the README.
+- [`docs/adr/ADR-003-secret-gate.md`](docs/adr/ADR-003-secret-gate.md): exit code `3`, the
+  non-tty block policy, and the spans-carrying verdict model.
+- `ExitCode(IntEnum)` — the CLI's exit codes are now named (`OK`/`NOT_FOUND`/`USAGE`/`BLOCKED`)
+  instead of magic literals.
+
 ### Changed
 
+- **A blocked secret exits `3`, distinct from the `2` used for usage errors.** A wrapper
+  script can now tell "nothing to capture" from "that was a secret, and it was not saved."
 - spec: Stage 4 gains content extraction; Stage 5 `-c` copies content.
 
 ## [0.2.0] — 2026-07-10
