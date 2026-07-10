@@ -9,6 +9,20 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+### Added
+
+- `gv` is installed as a short alias for `gaveta`. Both console scripts share one entry
+  point, so they cannot diverge.
+
+### Changed
+
+- The human view truncates `captured` to whole seconds
+  (`2026-07-10T08:04:53-05:00`). Display only: `--json` keeps full microsecond precision
+  and the `CaptureRequest` schema is unchanged.
+- Branches are now **rebase-merged** to `main` rather than squash-merged, so a stage's
+  commit sequence survives. Every commit on a branch must leave the tree green, and the
+  release tag goes on `chore: release vX.Y.Z`, which becomes `main`'s tip.
+
 ## [0.1.0] — 2026-07-10
 
 Stage 1 — simulated capture (the walking skeleton). `gaveta "text"` shows what it *would*
