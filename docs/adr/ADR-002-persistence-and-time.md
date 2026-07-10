@@ -105,9 +105,9 @@ Therefore:
   is exactly the bug above, merely relocated into our own code.
 - **Render.** `.astimezone()` at the display boundary, so a human sees their own clock. Symmetric
   with Stage 1, whose human view already prints a local offset.
-- **Machine output.** `--json` and `export` emit UTC with an explicit `+00:00`. Unambiguous by
-  construction; a consumer wanting local time can convert, and Stage 7's HTTP responses inherit
-  this for free.
+- **Machine output.** `--json` and `export` emit UTC with an explicit `Z` suffix (pydantic's
+  spelling of a zero offset). Unambiguous by construction; a consumer wanting local time can
+  convert, and Stage 7's HTTP responses inherit this for free.
 
 `created_at` is assigned in Python, never by `server_default=func.now()`. SQLite's
 `CURRENT_TIMESTAMP` produces a naive UTC string that bypasses the `TypeDecorator` entirely,

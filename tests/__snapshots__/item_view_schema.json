@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "ItemType": {
+      "enum": [
+        "link",
+        "command",
+        "note",
+        "credential_ref",
+        "unknown"
+      ],
+      "title": "ItemType",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "raw": {
+      "title": "Raw",
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Title"
+    },
+    "type": {
+      "$ref": "#/$defs/ItemType"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "raw",
+    "type",
+    "title",
+    "tags",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "ItemView",
+  "type": "object"
+}
