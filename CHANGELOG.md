@@ -9,6 +9,10 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+## [0.0.1] — 2026-07-09
+
+Stage 0 — scaffolding & governance. No product behavior yet: `gaveta` prints its version.
+
 ### Added
 
 - Project scaffolding: `pyproject.toml` (hatchling build, `gaveta-cli` distribution,
@@ -31,4 +35,5 @@ Until `v1.0.0` the minor version tracks the stage number from
 - The version is read from installed distribution metadata rather than duplicated as a
   literal, so `pyproject.toml` is the single source of truth.
 
-[Unreleased]: https://github.com/endybits/gaveta/commits/main/
+[Unreleased]: https://github.com/endybits/gaveta/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/endybits/gaveta/releases/tag/v0.0.1

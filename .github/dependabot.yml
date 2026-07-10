@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Actions are pinned to exact tags (see .github/workflows/ci.yml). Dependabot
+  # keeps those pins fresh, and each bump arrives as a PR that must pass our own CI.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
