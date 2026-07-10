@@ -19,8 +19,9 @@ $ gaveta f "how did I connect to the qa database?"
 1. [command] SSH tunnel to qa RDS   →  gaveta show 42 · -c to copy
 ```
 
-☝️ That is the destination. **What actually runs today** is the Stage 1 walking
-skeleton — see [What works right now](#what-works-right-now).
+☝️ That is the destination. **What actually runs today** persists captures to a local
+database and lets you list, show, remove, and export them — see
+[What works right now](#what-works-right-now).
 
 ## Security model (read this first)
 
@@ -45,18 +46,26 @@ stage. Nothing below is stable until `v1.0.0`.
 
 ## What works right now
 
-**Stage 1 — simulated capture. Persistence lands in Stage 2.** Gaveta accepts your text
-and prints exactly what it *would* save. Nothing is written to disk, no model runs, and
-there are no side effects beyond stdout.
+**Stage 2 — real persistence.** Captures are stored in a local SQLite database at
+`~/.gaveta/gaveta.db`. You can list, show, remove, and export them. No model runs yet
+(classification is Stage 4) and no secret gate runs yet (Stage 3), so every capture is
+saved verbatim and typed `unknown`.
 
 ```
 $ gaveta "ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database"
-[gaveta] would save:
-  raw      : ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database
-  type     : unknown   (classification lands in Stage 4)
-  tags     : []
-  captured : 2026-07-09T14:03:11-05:00
-  source   : cli
+✓ saved · id 1 · type unknown
+
+$ gaveta ls
+     1  unknown         ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database
+
+$ gaveta show 1
+  id      : 1
+  raw     : ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database
+  type    : unknown
+  title   : —
+  tags    : —
+  created : 2026-07-10T09:14:03-05:00
+  updated : 2026-07-10T09:14:03-05:00
 ```
 
 Pipe it instead, with `-` or on its own — the two are equivalent:
@@ -66,23 +75,35 @@ $ echo "remember this" | gaveta -
 $ pbpaste | gaveta
 ```
 
-`--json` emits the machine view: one JSON object per capture, on one line. This schema is
-the contract every later stage honors, and it is snapshot-tested, so it cannot drift by
-accident.
+`--json` returns the saved item — id included — as one JSON object. This is the machine
+contract every later stage honors, and it is snapshot-tested, so it cannot drift by
+accident. `created_at` is UTC (`Z`); the human views show your local time.
 
 ```
 $ gaveta "x" --json
-{"raw":"x","source":"cli","captured_at":"2026-07-09T14:03:11-05:00","type":"unknown","tags":[]}
+{"id":2,"raw":"x","type":"unknown","title":null,"tags":[],"created_at":"2026-07-10T14:14:03.482Z","updated_at":"2026-07-10T14:14:03.482Z"}
 ```
+
+Manage what you have captured:
+
+| Command | What it does |
+|---|---|
+| `gaveta ls [type]` | List captures, newest first; optionally filter by type |
+| `gaveta show <id>` | Show one capture in full |
+| `gaveta rm <id>` | Remove one (idempotent — a second `rm` of the same id is fine) |
+| `gaveta export` | Dump every capture as a JSON array to stdout |
+
+`gaveta export > backup.json` is the backup story; redirection is the file, so there is no
+`--output` flag. **Deleting `~/.gaveta/gaveta.db` resets the world** — the next command
+re-creates it, empty. Full schema in [`docs/data-model.md`](docs/data-model.md).
 
 Three things worth knowing:
 
 - **`gv` is an alias for `gaveta`.** Both commands are installed and point at the same
-  entry point, so `gv "some text"` is the capture path with less typing.
-- **Reserved words.** `ls`, `show`, `rm`, `export`, `retag`, `f`, `reindex`, `cred`,
-  `daemon`, and `ui` are reserved for the stages that implement them. `gaveta ls` exits
-  with a message naming its stage rather than capturing the word "ls". To capture one as
-  text, use `gaveta -- "ls"`.
+  entry point, so `gv ls` and `gv "some text"` work with less typing.
+- **Reserved words.** `retag`, `f`, `reindex`, `cred`, `daemon`, and `ui` are reserved for
+  the stages that implement them; `gaveta f "query"` exits with a message naming its stage
+  rather than capturing "f". To capture a reserved word as text, use `gaveta -- "f"`.
 - **Text starting with a dash.** A bare `-L` looks like an option to any argument parser.
   Quoted text with a space (`gaveta "ssh -L 5432"`) is fine; a lone dash token needs
   `gaveta -- "-L"`, or pipe it in.
@@ -91,19 +112,19 @@ Empty input (no argument, nothing piped) prints usage and exits `2`.
 
 ## Basic commands (target CLI)
 
-Not yet implemented — this is the destination, not today's behavior. See
-[What works right now](#what-works-right-now) for Stage 1.
+The rest of the destination, not yet implemented. See
+[What works right now](#what-works-right-now) for what runs today.
 
-| Command | What it does |
-|---|---|
-| `gaveta "some text"` | Capture anything — classification is automatic |
-| `echo "..." \| gaveta -` | Capture from stdin / clipboard pipe |
-| `gaveta f "query"` | Semantic find (`-c` copies best hit to clipboard) |
-| `gaveta ls [type]` | Browse by category (`link`, `command`, `note`, `cred`) |
-| `gaveta cred <name>` | Resolve a credential ref → vault → clipboard (auto-clear) |
-| `gaveta cred --new` | Create a vault entry + save its reference |
-| `gaveta ui` | Open the local web view |
-| `gaveta export` | JSON backup of your drawer |
+| Command | What it does | Status |
+|---|---|---|
+| `gaveta "some text"` | Capture anything — classification is automatic | capture works; classification is Stage 4 |
+| `echo "..." \| gaveta -` | Capture from stdin / clipboard pipe | ✅ works |
+| `gaveta ls [type]` | Browse by category | ✅ works |
+| `gaveta show <id>` · `rm <id>` · `export` | Inspect, remove, back up | ✅ works |
+| `gaveta f "query"` | Semantic find (`-c` copies best hit to clipboard) | Stage 5 |
+| `gaveta cred <name>` | Resolve a credential ref → vault → clipboard (auto-clear) | Stage 6 |
+| `gaveta cred --new` | Create a vault entry + save its reference | Stage 6 |
+| `gaveta ui` | Open the local web view | Stage 8 |
 
 ## Requirements
 
