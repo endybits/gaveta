@@ -11,14 +11,37 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ### Added
 
-- `gv` is installed as a short alias for `gaveta`. Both console scripts share one entry
-  point, so they cannot diverge.
+- **Persistence.** Captures are saved to a local SQLite database at `~/.gaveta/gaveta.db`
+  (overridable via `GAVETA_HOME`). Deleting the file resets the world.
+- `gaveta ls [type]` lists captures newest first, optionally filtered by type;
+  `gaveta show <id>` prints one in full; `gaveta rm <id>` removes one; `gaveta export`
+  dumps every capture as a JSON array to stdout (`> backup.json` is the backup story).
+- The `Item` model and an `items` table, created and evolved only by Alembic migrations —
+  wired from the first migration, and shipped inside the package so an installed Gaveta
+  can create its own database. Schema documented in [`docs/data-model.md`](docs/data-model.md).
+- [`docs/adr/ADR-002-persistence-and-time.md`](docs/adr/ADR-002-persistence-and-time.md):
+  two models with a mapping layer (input `CaptureRequest`, output `ItemView`), and UTC
+  timestamp storage.
+- `python -m gaveta` as a third invocation form, alongside the `gaveta` and `gv` scripts.
+- Architecture tests fencing two CLAUDE.md invariants: no module imports a network library,
+  and no `get_secret`-style symbol exists.
 
 ### Changed
 
-- The human view truncates `captured` to whole seconds
-  (`2026-07-10T08:04:53-05:00`). Display only: `--json` keeps full microsecond precision
-  and the `CaptureRequest` schema is unchanged.
+- **Capture now persists and reports the id it assigned.** The confirmation is a terse
+  one-liner — `✓ saved · id 1 · type unknown` — replacing Stage 1's five-line "would save"
+  block, and `--json` returns the saved item (`ItemView`, id included) rather than the
+  input `CaptureRequest`. A deliberate, additive contract change: a new
+  `item_view_schema.json` snapshot lands with it, and `capture_request_schema.json` is
+  unchanged.
+- `ls`, `show`, `rm`, and `export` are no longer reserved words that exit `2` — they run.
+  `retag`, `f`, `reindex`, `cred`, `daemon`, and `ui` remain reserved.
+- Machine timestamps serialize as UTC with a `Z` suffix; the human views (`ls`, `show`)
+  render in your local timezone, to the second.
+- `gv` is installed as a short alias for `gaveta`. Both console scripts share one entry
+  point, so they cannot diverge.
+- The human view truncates timestamps to whole seconds. Display only: `--json` keeps full
+  precision.
 - Branches are now **rebase-merged** to `main` rather than squash-merged, so a stage's
   commit sequence survives. Every commit on a branch must leave the tree green, and the
   release tag goes on `chore: release vX.Y.Z`, which becomes `main`'s tip.
