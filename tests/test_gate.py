@@ -125,6 +125,12 @@ def test_a_short_high_entropy_token_is_not_flagged() -> None:
     assert gate.scan("Zx9!qWmB").level is Level.clean
 
 
+def test_empty_input_is_clean() -> None:
+    """The degenerate case: nothing to scan, nothing flagged, entropy is 0."""
+    assert gate.scan("").level is Level.clean
+    assert gate._shannon_entropy("") == 0.0
+
+
 # --- scan: precedence and structure ------------------------------------------
 
 
