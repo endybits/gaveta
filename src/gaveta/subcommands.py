@@ -15,6 +15,7 @@ from collections.abc import Callable
 from gaveta import core
 from gaveta.db.models import ItemType
 from gaveta.db.session import session as db_session
+from gaveta.exit_codes import ExitCode
 from gaveta.render import (
     render_item,
     render_json,
@@ -54,13 +55,13 @@ def _ls(args: list[str]) -> int:
                 f"[gaveta] ✗ unknown type '{parsed.type}'. Valid types: {valid}",
                 file=sys.stderr,
             )
-            return 2
+            return ExitCode.USAGE
 
     with db_session() as session:
         items = core.list_items(item_type, session=session)
 
     _emit(render_json_list(items) if parsed.json_out else render_list(items))
-    return 0
+    return ExitCode.OK
 
 
 def _show(args: list[str]) -> int:
@@ -75,10 +76,10 @@ def _show(args: list[str]) -> int:
 
     if item is None:
         print(f"[gaveta] ✗ no item with id {parsed.id}", file=sys.stderr)
-        return 1
+        return ExitCode.NOT_FOUND
 
     _emit(render_json(item) if parsed.json_out else render_item(item))
-    return 0
+    return ExitCode.OK
 
 
 def _rm(args: list[str]) -> int:
@@ -91,7 +92,7 @@ def _rm(args: list[str]) -> int:
         existed = core.delete_item(parsed.id, session=session)
 
     _emit(render_removed(parsed.id, existed))
-    return 0
+    return ExitCode.OK
 
 
 def _export(args: list[str]) -> int:
@@ -106,7 +107,7 @@ def _export(args: list[str]) -> int:
         items = core.export_items(session=session)
 
     _emit(render_json_list(items))
-    return 0
+    return ExitCode.OK
 
 
 DISPATCH: dict[str, Handler] = {

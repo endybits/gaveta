@@ -15,6 +15,7 @@ from collections.abc import Callable
 from gaveta import __version__, core
 from gaveta.commands import implemented_head, reserved_head, reserved_message
 from gaveta.db.session import session as db_session
+from gaveta.exit_codes import ExitCode
 from gaveta.render import render_json, render_saved
 from gaveta.subcommands import DISPATCH
 
@@ -97,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     reserved = reserved_head(tokens)
     if reserved is not None:
         print(reserved_message(reserved), file=sys.stderr)
-        return 2
+        return ExitCode.USAGE
 
     parser = _build_parser()
     args = parser.parse_args(tokens)
@@ -106,11 +107,11 @@ def main(argv: list[str] | None = None) -> int:
     if raw is None:
         parser.print_usage(sys.stderr)
         print("\n[gaveta] nothing to capture.", file=sys.stderr)
-        return 2
+        return ExitCode.USAGE
 
     with db_session() as session:
         saved = core.capture(raw, session=session)
 
     view = render_json(saved) if args.json_out else render_saved(saved)
     sys.stdout.write(view if view.endswith("\n") else view + "\n")
-    return 0
+    return ExitCode.OK
