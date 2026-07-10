@@ -9,11 +9,14 @@ from gaveta.models import CaptureRequest
 from gaveta.render import render_human, render_json
 
 FIXED_TIME = datetime.fromisoformat("2026-07-09T14:03:11-05:00")
+# Carries microseconds, so the human view's truncation is actually exercised.
+# A whole-second timestamp would make those tests pass vacuously.
+PRECISE_TIME = datetime.fromisoformat("2026-07-09T14:03:11.285326-05:00")
 SPEC_EXAMPLE = "ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database"
 
 
-def _request(raw: str = "x") -> CaptureRequest:
-    return CaptureRequest(raw=raw, captured_at=FIXED_TIME)
+def _request(raw: str = "x", when: datetime = FIXED_TIME) -> CaptureRequest:
+    return CaptureRequest(raw=raw, captured_at=when)
 
 
 def test_human_view_reproduces_the_spec_example() -> None:
@@ -36,6 +39,30 @@ def test_human_view_labels_the_timestamp_field_captured() -> None:
 
     assert "  captured : " in output
     assert "captured_at" not in output
+
+
+def test_human_view_truncates_the_timestamp_to_seconds() -> None:
+    """Microseconds are noise for a human skimming a terminal."""
+    output = render_human(_request(when=PRECISE_TIME))
+
+    assert "  captured : 2026-07-09T14:03:11-05:00\n" in output
+    assert "285326" not in output
+
+
+def test_human_view_keeps_the_utc_offset_when_truncating() -> None:
+    """`timespec="seconds"`, not a string slice, which would drop the offset."""
+    output = render_human(_request(when=PRECISE_TIME))
+
+    assert "-05:00" in output
+
+
+def test_json_view_keeps_full_precision_when_human_view_truncates() -> None:
+    """Display-only change. The machine contract is untouched, and the schema
+    snapshot must not need regenerating."""
+    request = _request(when=PRECISE_TIME)
+
+    assert "285326" in render_json(request)
+    assert "285326" not in render_human(request)
 
 
 @pytest.mark.parametrize(
