@@ -39,6 +39,8 @@ Changelog = "https://github.com/endybits/gaveta/blob/main/CHANGELOG.md"
 
 [project.scripts]
 gaveta = "gaveta.cli:main"
+# Short alias, same entry point. Capture is the hot path; `gv "text"` is less typing.
+gv = "gaveta.cli:main"
 
 # Mirrored in [dependency-groups] below. This table keeps the no-uv path
 # (`pip install -e ".[dev]"`) working; uv reads the dependency group.
