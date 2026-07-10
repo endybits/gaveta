@@ -1,25 +1,25 @@
-"""Console entry point — simulated capture.
+"""Console entry point.
 
-Stage 1 saves nothing. It resolves the input, builds a `CaptureRequest`, and prints
-what *would* be saved. The parsing seam (argparse plus an explicit reserved-word
-check, rather than a CLI framework) is recorded in ADR-001.
+Capture resolves the input, hands it to `gaveta.core`, and prints the item that was
+saved. The CLI is a client of the core, not the other way round: nothing here decides
+what a capture *is*, only how it is spelled and how it is shown.
+
+The parsing seam (argparse plus an explicit reserved-word check, rather than a CLI
+framework) is recorded in ADR-001.
 """
 
 import argparse
 import sys
 from collections.abc import Callable
-from datetime import datetime
 
-from gaveta import __version__
+from gaveta import __version__, core
 from gaveta.commands import reserved_head, reserved_message
-from gaveta.models import CaptureRequest
-from gaveta.render import render_human, render_json
+from gaveta.db.session import session as db_session
+from gaveta.render import render_json, render_saved
 
 _STDIN_TOKEN = "-"
 
-_DESCRIPTION = (
-    "Capture text into your drawer. Stage 1 simulates saving: nothing is stored yet."
-)
+_DESCRIPTION = "Capture text into your drawer."
 
 _EPILOG = (
     "A bare dash token (-L) is read as an option; put it after `--` to capture it,\n"
@@ -44,7 +44,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         dest="json_out",
-        help="emit one JSON object instead of the human view",
+        help="emit the saved item as one JSON object instead of the confirmation",
     )
     parser.add_argument("--version", action="version", version=f"gaveta {__version__}")
     return parser
@@ -95,7 +95,9 @@ def main(argv: list[str] | None = None) -> int:
         print("\n[gaveta] nothing to capture.", file=sys.stderr)
         return 2
 
-    request = CaptureRequest(raw=raw, captured_at=datetime.now().astimezone())
-    view = render_json(request) if args.json_out else render_human(request)
+    with db_session() as session:
+        saved = core.capture(raw, session=session)
+
+    view = render_json(saved) if args.json_out else render_saved(saved)
     sys.stdout.write(view if view.endswith("\n") else view + "\n")
     return 0
