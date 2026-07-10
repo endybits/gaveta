@@ -49,6 +49,22 @@ lowering requires an explicit spec change.
 The version lives in exactly one place: `version` in `pyproject.toml`. `gaveta.__version__`
 reads it back via `importlib.metadata`. Never hardcode a version literal in `src/`.
 
+## Working on this repo safely
+
+**Never `git reset --hard` with a dirty working tree.** `--hard` discards uncommitted
+changes, including ones you did not make and may not have read. Stash or commit first. To
+undo a throwaway probe commit, use `git reset --soft HEAD~1` or `git commit --amend`. A
+human's uncommitted work is not yours to discard.
+
+**Pin GitHub Actions to a tag that exists.** Do not infer a floating major alias (`@v8`)
+from a point release (`v8.3.2`) — not every action publishes one, and the job then fails at
+setup before running anything. Verify with `git ls-remote --tags`, prefer an exact pin, and
+say why in a comment. Dependabot keeps exact pins fresh.
+
+**Some failures only exist on the runner.** Local verification cannot catch a bad action
+ref, a matrix-only break, or a stale lockfile. This is why every stage's DoD requires green
+CI, not just a green local run.
+
 ## Architecture invariants
 
 These constraints shape the code and are enforced by tests — they are not style preferences.

@@ -357,5 +357,9 @@ every outbound payload (second chance for the gate).
    starts at `90` in Stage 0 — deliberate slack, not the measured value, so that the first
    real code does not fail CI by definition.
 4. Update README/docs touched by the stage. Update CHANGELOG under `Unreleased`.
-5. Squash-merge PR (PR description = spec + DoD checklist, even solo — it's the
-   project's narrative history). Tag. Move CHANGELOG entries under the new version.
+5. **Last commit on the branch**: move the `Unreleased` CHANGELOG entries under the new
+   version (`docs: release vX.Y.Z changelog`). Doing this after the merge would mean a
+   direct commit on `main`, outside a PR — which this flow forbids and branch protection
+   blocks outright.
+6. Squash-merge PR (PR description = spec + DoD checklist, even solo — it's the
+   project's narrative history). Then tag the merge commit on `main` and push the tag.
