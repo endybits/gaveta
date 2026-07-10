@@ -1,12 +1,15 @@
-"""Stage 0 smoke tests: the package imports, and the console script resolves."""
+"""Stage 0 smoke tests: the package imports, and the console scripts resolve."""
 
 import re
-from importlib.metadata import version
+from importlib.metadata import entry_points, version
 
 import pytest
 
 import gaveta
 from gaveta.cli import main
+
+# Both installed commands. `gv` is an alias sharing `gaveta`'s entry point.
+CONSOLE_SCRIPTS = ("gaveta", "gv")
 
 # A permissive PEP 440 release prefix: enough to catch an empty string or a
 # placeholder, without pulling in `packaging` as a dependency at Stage 0.
@@ -38,3 +41,22 @@ def test_cli_entry_point_runs(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert exit_info.value.code == 0
     assert gaveta.__version__ in capsys.readouterr().out
+
+
+def _console_script(name: str) -> object:
+    """The callable a console script resolves to, per installed metadata."""
+    scripts = {ep.name: ep for ep in entry_points(group="console_scripts")}
+    assert name in scripts, f"console script {name!r} is not installed"
+    return scripts[name].load()
+
+
+@pytest.mark.parametrize("name", CONSOLE_SCRIPTS)
+def test_console_script_is_installed_and_resolves(name: str) -> None:
+    """Reads the installed distribution metadata, so a typo in
+    `[project.scripts]` fails here rather than at a user's shell prompt."""
+    assert _console_script(name) is main
+
+
+def test_gv_is_an_alias_of_gaveta() -> None:
+    """Same entry point, not a copy: one code path, so they cannot diverge."""
+    assert _console_script("gv") is _console_script("gaveta")
