@@ -13,18 +13,20 @@ import sys
 from collections.abc import Callable
 
 from gaveta import __version__, core
-from gaveta.commands import reserved_head, reserved_message
+from gaveta.commands import implemented_head, reserved_head, reserved_message
 from gaveta.db.session import session as db_session
 from gaveta.render import render_json, render_saved
+from gaveta.subcommands import DISPATCH
 
 _STDIN_TOKEN = "-"
 
-_DESCRIPTION = "Capture text into your drawer."
+_DESCRIPTION = "Capture text into your drawer, or manage what you have captured."
 
 _EPILOG = (
+    "Commands:  ls [type] · show <id> · rm <id> · export\n"
     "A bare dash token (-L) is read as an option; put it after `--` to capture it,\n"
     'e.g.  gaveta -- "-L". Quoted text containing a space ("ssh -L 5432") is fine.\n'
-    "Reserved command names (ls, show, rm, f, ...) are not implemented yet."
+    "Reserved for later stages: retag, f, reindex, cred, daemon, ui."
 )
 
 
@@ -75,12 +77,23 @@ def _resolve_raw(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the CLI. Returns the exit code: 0 on capture, 2 on nothing to capture."""
+    """Run the CLI, and return its exit code.
+
+    Dispatch order, all keyed on the first token only (so `gaveta "ls my files"` stays
+    text):
+
+    1. An implemented subcommand (`ls`/`show`/`rm`/`export`) → its handler.
+    2. A still-reserved word (`f`, `cred`, …) → usage, exit 2.
+    3. Anything else → capture.
+    """
     tokens = list(sys.argv[1:] if argv is None else argv)
 
-    # Checked before argparse, which would otherwise swallow a reserved word as a
-    # positional. Only the first token is inspected, so `gaveta ls links` is a
-    # reserved command while `gaveta "ls my files"` is ordinary text.
+    # Subcommands and reserved words are both checked before argparse, which would
+    # otherwise swallow the leading token as capture text.
+    implemented = implemented_head(tokens)
+    if implemented is not None:
+        return DISPATCH[implemented](tokens[1:])
+
     reserved = reserved_head(tokens)
     if reserved is not None:
         print(reserved_message(reserved), file=sys.stderr)
