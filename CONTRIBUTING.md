@@ -51,8 +51,22 @@ enforced by a `commit-msg` hook — a non-conforming message is rejected locally
 ever reaches CI.
 
 Branches are `stage/N-short-name` (e.g. `stage/1-simulated-capture`) or `fix/short-name`.
-They are squash-merged to `main` and tagged at stage close: `v0.0.1` for Stage 0, `v0.N.0`
-for Stages 1–10.
+They are **rebase-merged** to `main` and tagged at stage close: `v0.0.1` for Stage 0,
+`v0.N.0` for Stages 1–10.
+
+Rebase, not squash. This project treats its history as part of what it ships: a stage's
+commits show an ADR landing before the code it justifies, and a new dependency arriving as
+its own reviewable one-line diff. Squashing a stage into a single commit keeps the outcome
+and throws away the argument.
+
+Two things follow, and both are on you as the author:
+
+- **Every commit must leave the tree green.** Rebase replays your commits onto `main` one at
+  a time, so each becomes a real point in `main`'s history. CI only gates the PR head — no
+  check will catch a broken intermediate commit, so don't write one intending to fix it two
+  commits later.
+- **There is no merge commit.** Your last commit (`chore: release vX.Y.Z`) becomes `main`'s
+  tip, and that is what gets tagged.
 
 ### 4. Tests are not optional
 
