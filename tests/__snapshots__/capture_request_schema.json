@@ -1,0 +1,38 @@
+{
+  "properties": {
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "raw": {
+      "title": "Raw",
+      "type": "string"
+    },
+    "source": {
+      "const": "cli",
+      "default": "cli",
+      "title": "Source",
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "type": {
+      "const": "unknown",
+      "default": "unknown",
+      "title": "Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "raw",
+    "captured_at"
+  ],
+  "title": "CaptureRequest",
+  "type": "object"
+}

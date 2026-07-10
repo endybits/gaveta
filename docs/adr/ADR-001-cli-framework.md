@@ -92,9 +92,11 @@ environment. Re-run in a venv with `typer` installed, the `Annotated[...]` style
 mode with no errors — Typer ships `py.typed`. The criterion was a wash, and the ADR says so
 rather than stacking a false argument onto a conclusion already reached on other grounds.
 
-Leading-dash content (`gaveta "-L 5432"`) fails identically on **both** frameworks: a bare `-L`
-is an unrecognized option either way. The remedy is `gaveta -- "-L …"` or stdin. Also not a
-discriminator — a README note, not a code path.
+Leading-dash content behaves identically on **both** frameworks, so it is not a discriminator
+either. Precisely: a *bare* dash token (`gaveta -L`) is claimed as an option by any parser and
+errors out; a quoted string that merely *starts* with a dash but contains a space
+(`gaveta "-L 5432"`) is a single argv element, is not option-shaped, and captures fine. The
+escape hatch for the first case is `gaveta -- "-L"` or stdin. A README note, not a code path.
 
 ## Consequences
 

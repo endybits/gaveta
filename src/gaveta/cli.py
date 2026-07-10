@@ -22,7 +22,8 @@ _DESCRIPTION = (
 )
 
 _EPILOG = (
-    'Text starting with a dash must follow `--`, e.g.  gaveta -- "ssh -L 5432:host"\n'
+    "A bare dash token (-L) is read as an option; put it after `--` to capture it,\n"
+    'e.g.  gaveta -- "-L". Quoted text containing a space ("ssh -L 5432") is fine.\n'
     "Reserved command names (ls, show, rm, f, ...) are not implemented yet."
 )
 
