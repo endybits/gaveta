@@ -58,12 +58,20 @@ stage. Nothing below is stable until `v1.0.0`.
 
 ## Development quickstart
 
+Gaveta uses [uv](https://docs.astral.sh/uv/) to manage the environment.
+
 ```bash
-git clone https://github.com/<org>/gaveta && cd gaveta
+git clone https://github.com/endybits/gaveta && cd gaveta
+uv sync                     # creates .venv and installs everything, from uv.lock
+uv run pre-commit install   # installs both pre-commit and commit-msg hooks
+uv run pytest
+```
+
+Without `uv`, the classic path still works:
+
+```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pre-commit install
-pytest
+pip install -e ".[dev]" && pre-commit install && pytest
 ```
 
 ## Contributing

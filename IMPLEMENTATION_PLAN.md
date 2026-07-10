@@ -33,6 +33,7 @@ Definition of Done checklist is complete.
 | Tests | `pytest`; every stage adds tests; CI must be green to merge |
 | Style | `ruff` (lint + format), `mypy --strict` on `src/` |
 | Python | 3.11+ · package name on PyPI: `gaveta-cli` · installed command: `gaveta` |
+| Environment | `uv` (`uv sync`, `uv run …`); `uv.lock` is committed. `pip install -e ".[dev]"` remains supported |
 | Layout | `src/gaveta/` layout, `tests/`, `docs/` |
 
 ---
@@ -44,10 +45,13 @@ environment with lint, types, and tests wired. The repo communicates its rules
 without anyone having to ask.
 
 **Scope**
-- `pyproject.toml` (project metadata, `gaveta = "gaveta.cli:main"` entry point).
-- `src/gaveta/__init__.py` with `__version__`.
-- Tooling: `ruff`, `mypy`, `pytest`, `pre-commit` (ruff + conventional-commit hook).
-- CI (GitHub Actions): lint → typecheck → test matrix on push/PR.
+- `pyproject.toml` (project metadata, `gaveta = "gaveta.cli:main"` entry point), built with
+  `hatchling`; `uv` manages the environment and `uv.lock` is committed for reproducible CI.
+- `src/gaveta/__init__.py` exposing `__version__`, derived from installed distribution
+  metadata (`importlib.metadata`) so the version lives only in `pyproject.toml`.
+- Tooling: `ruff`, `mypy`, `pytest`, `pre-commit` (ruff + conventional-commit hook via
+  `commitizen`).
+- CI (GitHub Actions): lint, typecheck, and a test matrix on push/PR.
 - `README.md`, `LICENSE` (Apache 2.0), `CONTRIBUTING.md` (extracted from README rules),
   `CHANGELOG.md` (Keep a Changelog format).
 
@@ -58,8 +62,10 @@ without anyone having to ask.
 **Docs.** README badges (CI status), dev quickstart section.
 
 **Definition of Done**
-- [ ] `pip install -e ".[dev]" && pytest` green locally and in CI
-- [ ] `pre-commit run --all-files` clean
+- [ ] `uv sync && uv run pytest` green locally and in CI
+- [ ] `pip install -e ".[dev]" && pytest` (the no-uv path) green
+- [ ] `pre-commit run --all-files` clean, and `.git/hooks/commit-msg` rejects a
+      non-conventional commit message
 - [ ] Tag `v0.0.1`
 
 ---
@@ -345,7 +351,11 @@ every outbound payload (second chance for the gate).
 1. Open `stage/N-name` branch. First commit: the spec section of this file updated
    if reality diverged (spec is living, but changes are explicit commits).
 2. Implement in small conventional commits.
-3. Tests green + coverage not lower than previous stage.
+3. Tests green, and the coverage ratchet holds: `fail_under` in `pyproject.toml` is the
+   floor. A stage-closing PR **may raise it** to the newly measured value; it **may never
+   lower it**. Raising is optional, lowering requires an explicit spec change. The floor
+   starts at `90` in Stage 0 — deliberate slack, not the measured value, so that the first
+   real code does not fail CI by definition.
 4. Update README/docs touched by the stage. Update CHANGELOG under `Unreleased`.
 5. Squash-merge PR (PR description = spec + DoD checklist, even solo — it's the
    project's narrative history). Tag. Move CHANGELOG entries under the new version.
