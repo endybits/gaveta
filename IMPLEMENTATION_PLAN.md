@@ -192,6 +192,14 @@ tokens → `command`; else `note`) and never blocks capture.
 - Model configurable (`~/.gaveta/config.toml`), default: a small instruct model
   (evaluate Qwen 2.5 3B vs. Gemma small against 20 real samples — record in ADR-002).
 - Strict JSON contract with the model; malformed output → fallback, never crash.
+- The classifier additionally extracts `content`: the clean, usable payload of the
+  item — the bare command, the bare URL, the bare snippet — stripped of the
+  surrounding narrative. `raw` remains the immutable original as captured; `title`
+  remains the short human label. Three layers: raw (everything), content (the
+  copyable part), title (the readable label). `content` is a new nullable column
+  added via Alembic migration in Stage 4; `retag <id>` re-extracts it along with
+  type/title/tags. The heuristic fallback (no Ollama) sets content only for
+  trivially extractable cases (a lone URL) and leaves it null otherwise.
 - `gaveta retag <id>` to reclassify.
 
 **Tests**
@@ -217,6 +225,9 @@ with id, type, title. `-c` copies the best hit's payload to the clipboard.
 - Hybrid ranking: vector similarity + FTS5 keyword score (simple reciprocal fusion).
 - Backfill command: `gaveta reindex`.
 - Clipboard via `pyperclip` (with a no-clipboard fallback that prints).
+- `-c` copies `content` when present, falling back to `raw`. Rationale: the promise
+  of retrieval is paste-ready output; prose glued to a SQL query is the friction this
+  product exists to remove.
 
 **Tests**
 - Deterministic fake embedder in tests (no network, no model).
