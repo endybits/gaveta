@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gaveta-cli"
+version = "0.0.1"
+description = "Everything you need, right where you left it. A local-first, private knowledge drawer for developers."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Endy Bits" }]
+keywords = ["cli", "knowledge-base", "local-first", "privacy", "notes"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Utilities",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/endybits/gaveta"
+Repository = "https://github.com/endybits/gaveta"
+Changelog = "https://github.com/endybits/gaveta/blob/main/CHANGELOG.md"
+
+[project.scripts]
+gaveta = "gaveta.cli:main"
+
+# Mirrored in [dependency-groups] below. This table keeps the no-uv path
+# (`pip install -e ".[dev]"`) working; uv reads the dependency group.
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=6",
+  "mypy>=1.15",
+  "ruff>=0.9",
+  "pre-commit>=4",
+  "commitizen>=4",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=6",
+  "mypy>=1.15",
+  "ruff>=0.9",
+  "pre-commit>=4",
+  "commitizen>=4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gaveta"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+strict = true
+files = ["src"]
+python_version = "3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=gaveta --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["gaveta"]
+
+[tool.coverage.report]
+# The floor, not the measured value. Stage 0 measures ~100% (a stub plus smoke
+# tests); pinning it there would fail Stage 1's first real code by definition.
+# This may only ever be raised at a stage close-out, never lowered.
+# See the working agreement in IMPLEMENTATION_PLAN.md.
+fail_under = 90
+show_missing = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+tag_format = "v$version"
+major_version_zero = true
