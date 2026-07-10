@@ -30,6 +30,13 @@ dependencies = [
   "pydantic>=2",
   # Render layer only: it formats output and has no say in argument parsing.
   "rich>=13",
+  # Persistence (Stage 2). The 2.0 typed ORM (`Mapped[...]` / `mapped_column`)
+  # passes `mypy --strict` with no plugin, so there is no [tool.mypy] plugins entry.
+  "sqlalchemy>=2.0",
+  # Schema changes only via migrations, from the very first one. The migration
+  # scripts live inside the package (src/gaveta/db/migrations/) so the wheel ships
+  # them and an installed Gaveta can create its own database. See ADR-002.
+  "alembic>=1.13",
 ]
 
 [project.urls]
