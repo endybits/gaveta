@@ -13,6 +13,9 @@ env:
   # `uv sync --frozen` fails on a stale uv.lock instead of silently re-resolving.
   UV_FROZEN: "1"
 
+# astral-sh/setup-uv is pinned to an exact patch tag: it does not publish a
+# floating `v8` major alias, so `@v8` fails to resolve at job setup.
+
 # The three jobs run in parallel. "lint -> mypy -> pytest" is an ordering of
 # severity, not of execution: the merge gate is that all three pass, and branch
 # protection enforces that. Running them concurrently returns feedback sooner.
@@ -22,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.3.2
         with:
           python-version: "3.12"
           enable-cache: true
@@ -35,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.3.2
         with:
           python-version: "3.12"
           enable-cache: true
@@ -51,7 +54,7 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.3.2
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
