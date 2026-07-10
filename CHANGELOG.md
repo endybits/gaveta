@@ -9,6 +9,37 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+Stage 1 — simulated capture (the walking skeleton). `gaveta "text"` shows what it *would*
+save. Nothing is persisted; no model runs. This stage fixes the capture contract that
+every later stage must honor.
+
+### Added
+
+- `gaveta "any text"` prints a structured, human-readable log of the capture that *would*
+  be saved: `raw`, `type`, `tags`, `captured` (ISO-8601 with local offset), and `source`.
+- `--json` emits the machine view: one JSON object per capture, on a single line. Its
+  schema is snapshot-tested in `tests/__snapshots__/capture_request_schema.json`, so a
+  contract change can only land as an explicit, reviewed diff.
+- Stdin support: `echo "..." | gaveta -` and the bare `echo "..." | gaveta` are equivalent
+  to the argument form.
+- `CaptureRequest` (pydantic) — the capture model. `type` is fixed at `unknown` and `tags`
+  at `[]` until Stages 4 and 2 give them meaning.
+- Reserved command vocabulary (`gaveta.commands`): the ten commands the implementation plan
+  grounds — `ls`, `show`, `rm`, `export`, `retag`, `f`, `reindex`, `cred`, `daemon`, `ui` —
+  exit `2` with a message naming the stage that implements them. Matching is on the first
+  token, so `gaveta ls links` is a reserved command while `gaveta "ls my files"` is text.
+- `--version`, and `--` to capture text that begins with a dash.
+- `docs/adr/ADR-001-cli-framework.md`, the project's first ADR: `argparse` over `typer`,
+  with the probe evidence behind the choice.
+- `pydantic` and `rich` as the first runtime dependencies.
+
+### Changed
+
+- Empty input exits `2` with a usage message. Empty or whitespace-only stdin counts as
+  empty input, so behavior is identical on a terminal and on a CI runner, where stdin is
+  never a tty.
+- `gaveta` with no arguments no longer prints the version; use `gaveta --version`.
+
 ## [0.0.1] — 2026-07-09
 
 Stage 0 — scaffolding & governance. No product behavior yet: `gaveta` prints its version.
