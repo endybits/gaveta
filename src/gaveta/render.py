@@ -58,7 +58,11 @@ def render_human(request: CaptureRequest) -> str:
     for field, label in _LABELS:
         value = getattr(request, field)
         if field == "captured_at":
-            value = value.isoformat()
+            # Seconds are enough for a human skimming a terminal; microseconds are
+            # noise. Display only — `render_json` keeps full precision, and the
+            # schema is unchanged. `timespec` rather than slicing the string,
+            # which would drop the UTC offset.
+            value = value.isoformat(timespec="seconds")
         elif field == "tags":
             value = list(value)
         line = f"  {label:<{_LABEL_WIDTH}} : {value}"
