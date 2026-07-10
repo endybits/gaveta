@@ -27,9 +27,10 @@ database and lets you list, show, remove, and export them — see
 
 **Secrets never enter Gaveta.** A deterministic secret gate scans every capture
 *before* anything else — including any model — sees it. Passwords, API keys, and
-tokens are rejected and redirected to your real vault (Bitwarden or KeePassXC).
-Gaveta stores only *references*; resolving one sends the secret straight from the
-vault to your clipboard, never through Gaveta's storage, logs, or model context.
+tokens are rejected on sight, and pointed toward your real vault (Bitwarden or
+KeePassXC — the vault flow itself lands in a later release). The eventual design
+stores only *references*; resolving one sends the secret straight from the vault to
+your clipboard, never through Gaveta's storage, logs, or model context.
 
 No detector is perfect, so the design assumes escapes: everything is local
 (SQLite on your machine), nothing is sent to any external API, and outbound
@@ -46,10 +47,10 @@ stage. Nothing below is stable until `v1.0.0`.
 
 ## What works right now
 
-**Stage 2 — real persistence.** Captures are stored in a local SQLite database at
-`~/.gaveta/gaveta.db`. You can list, show, remove, and export them. No model runs yet
-(classification is Stage 4) and no secret gate runs yet (Stage 3), so every capture is
-saved verbatim and typed `unknown`.
+**Stage 3 — the secret gate.** Captures are stored in a local SQLite database at
+`~/.gaveta/gaveta.db`, and **a deterministic secret gate now scans every capture before it
+is written**. You can list, show, remove, and export items. No model runs yet
+(classification is Stage 4), so a captured item is still typed `unknown`.
 
 ```
 $ gaveta "ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database"
@@ -84,6 +85,31 @@ $ gaveta "x" --json
 {"id":2,"raw":"x","type":"unknown","title":null,"tags":[],"created_at":"2026-07-10T14:14:03.482Z","updated_at":"2026-07-10T14:14:03.482Z"}
 ```
 
+**The secret gate.** A known-format secret — an AWS key, a GitHub/Slack/Stripe token, a
+PEM private key, a `user:pass@` URL, a JWT — is rejected before anything is written, with
+exit code `3`:
+
+```
+$ gaveta "deploy key: AKIAIOSFODNN7EXAMPLE"
+✋ blocked: input contains what looks like an AWS access key.
+   Secrets never enter Gaveta. Store it in your vault and save a reference
+   instead — that flow lands in a later release (gaveta cred --new).
+   To keep this capture now with the secret masked:  gaveta --redact
+```
+
+A value that only *looks* risky — high entropy, or sitting next to a word like `password:`
+or `clave:` — prompts you at a terminal (`[v]ault · [r]edact · [s]ave anyway`). Over a pipe,
+where there is no terminal to ask, it blocks rather than guess. `--redact` masks the
+detected part with `[REDACTED]` and saves the rest, from any source:
+
+```
+$ gaveta --redact "deploy key: AKIAIOSFODNN7EXAMPLE"
+✓ saved · id 3 · type unknown · redacted
+```
+
+Full details, honest limits, and the four-layer design are in
+[`docs/security-model.md`](docs/security-model.md).
+
 Manage what you have captured:
 
 | Command | What it does |
@@ -108,7 +134,9 @@ Three things worth knowing:
   Quoted text with a space (`gaveta "ssh -L 5432"`) is fine; a lone dash token needs
   `gaveta -- "-L"`, or pipe it in.
 
-Empty input (no argument, nothing piped) prints usage and exits `2`.
+Exit codes: `0` success · `1` not found (`show` of a missing id) · `2` usage (empty input,
+a reserved word, a parse error) · `3` a blocked secret. A script can tell "nothing to
+capture" from "that was a secret, and it was not saved."
 
 ## Basic commands (target CLI)
 
