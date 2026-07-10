@@ -1,0 +1,41 @@
+# `pre-commit install` installs only the `pre-commit` hook type by default. The
+# commitizen hook below runs at `commit-msg`, so without this line it would sit
+# in this file, never be installed, and let non-conventional commit messages
+# through in silence. Declaring the types here keeps the documented quickstart a
+# single `uv run pre-commit install`.
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.21
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.16.4
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  - repo: local
+    hooks:
+      # Run through uv so mypy sees the locked interpreter and dependency set,
+      # rather than pre-commit's isolated environment.
+      - id: mypy
+        name: mypy --strict src/
+        entry: uv run mypy --strict src/
+        language: system
+        types: [python]
+        pass_filenames: false
