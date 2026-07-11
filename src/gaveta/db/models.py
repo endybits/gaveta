@@ -80,6 +80,13 @@ class Item(Base):
     # something reads the text and proposes one.
     title: Mapped[str | None] = mapped_column(String(200), nullable=True, default=None)
 
+    # The middle of the three layers (raw / content / title): the clean copyable payload
+    # — the bare command, the bare URL, the bare snippet — with surrounding narrative
+    # stripped. Nullable by design: plain prose has no bare payload to extract, and the
+    # heuristic floor leaves it null for anything but a lone URL. Text, not String(n):
+    # a snippet has no natural length bound the way a title does.
+    content: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+
     # The column is `tags_json` (it holds a JSON array); the attribute is `tags`,
     # because callers think in tags, not in storage encodings.
     tags: Mapped[list[str]] = mapped_column(

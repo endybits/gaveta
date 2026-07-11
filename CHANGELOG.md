@@ -11,6 +11,10 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ### Added
 
+- **The `content` column.** A nullable `content` column on `items`, added by an Alembic
+  migration — the middle of the three layers (raw / content / title): the clean copyable
+  payload with narrative stripped. Existing rows survive the upgrade with `content` NULL;
+  the downgrade drops it cleanly.
 - **Local classification (`gaveta.brain`).** A `Classifier` protocol with two
   implementations behind an Adapter: `OllamaClassifier` asks a local model for a strict
   JSON `{type, title, tags, content}`, and `HeuristicClassifier` is the deterministic
