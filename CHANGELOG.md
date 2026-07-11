@@ -9,6 +9,14 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+### Added
+
+- **`~/.gaveta/config.toml`.** An optional config file (GAVETA_HOME-aware) with a `[model]`
+  block: `name`, `endpoint`, `timeout`. Absent means defaults (`qwen2.5:3b-instruct` on
+  `http://localhost:11434`, a 2.5s budget). A malformed file, or an endpoint that is not
+  localhost, is a usage error (exit `2`) with a clear message — Gaveta never dials a
+  non-local model (ADR-004).
+
 ## [0.3.0] — 2026-07-10
 
 Stage 3 — the secret gate. A deterministic detector scans every capture *before* it is
