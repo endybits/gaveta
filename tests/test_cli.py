@@ -201,10 +201,10 @@ def test_reserved_word_with_trailing_tokens_exits_two(
 def test_implemented_word_is_not_treated_as_reserved(
     tty_stdin: _FakeStdin, capsys: pytest.CaptureFixture[str], name: str
 ) -> None:
-    """ls/show/rm/export dispatch now; none may print the reserved-word message.
+    """ls/show/retag/rm/export dispatch now; none may print the reserved-word message.
 
-    `show`/`rm` without an id raise argparse's own SystemExit, so this asserts the
-    *reserved* path is gone rather than any particular exit code.
+    `show`/`retag`/`rm` without an id raise argparse's own SystemExit, so this asserts
+    the *reserved* path is gone rather than any particular exit code.
     """
     # show/rm without an id raise argparse's own SystemExit; that is still not the
     # reserved path, which is what this test is about.

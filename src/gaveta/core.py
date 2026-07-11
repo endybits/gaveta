@@ -79,6 +79,35 @@ def capture(
     return to_view(item)
 
 
+def retag(
+    item_id: int, *, session: Session, classifier: Classifier | None = None
+) -> ItemView | None:
+    """Re-classify a stored capture, or `None` if there is no such id.
+
+    Runs the classifier over the item's `raw` — already post-gate text, since a secret
+    never reached the drawer — and updates `type`, `title`, `tags`, `content`, and
+    `updated_at`. This is the upgrade path for anything saved via the heuristic floor:
+    capture with no model, `retag` once Ollama is up. `raw` is immutable and never
+    touched; the gate does not re-run, because the stored text already passed it.
+    """
+    item = session.get(Item, item_id)
+    if item is None:
+        return None
+
+    classifier = classifier or make_classifier()
+    classification = classifier.classify(item.raw)
+
+    item.type = classification.type
+    item.title = classification.title
+    item.content = classification.content
+    item.tags = list(classification.tags)
+    item.updated_at = now_utc()
+
+    session.commit()
+    session.refresh(item)
+    return to_view(item)
+
+
 def list_items(
     item_type: ItemType | None = None, *, session: Session
 ) -> list[ItemView]:
