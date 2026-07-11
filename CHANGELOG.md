@@ -14,6 +14,12 @@ and are called out under a **Breaking** heading.
 
 ### Changed
 
+- **Sharper classification prompt** (Ollama path). Revised after live testing on
+  `qwen2.5:3b-instruct`: a command that contains a URL is now a `command` whose content is
+  the whole command line (not a `link`); tags describe subject matter — technologies,
+  systems, topics — never importance or sentiment; and the capture is fenced in `<capture>`
+  markers and declared data, not instructions, so a capture cannot inject prompt commands.
+  Heuristic fallback and the JSON contract are unchanged.
 - **spec:** versioning policy — the first public release is `v0.10.0`, and `v1.0.0` is reserved
   for stability of the public contracts (CLI surface, `--json`/export schemas, `config.toml`
   format, exit codes), tagged only after they survive real-world use without breaking changes.
