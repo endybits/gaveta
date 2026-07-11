@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gaveta-cli"
-version = "0.3.0"
+version = "0.4.0"
 description = "Everything you need, right where you left it. A local-first, private knowledge drawer for developers."
 readme = "README.md"
 requires-python = ">=3.11"
