@@ -41,10 +41,10 @@ _SUSPICIOUS_NON_TTY = (
 _DESCRIPTION = "Capture text into your drawer, or manage what you have captured."
 
 _EPILOG = (
-    "Commands:  ls [type] · show <id> · rm <id> · export\n"
+    "Commands:  ls [type] · show <id> · retag <id> · rm <id> · export\n"
     "A bare dash token (-L) is read as an option; put it after `--` to capture it,\n"
     'e.g.  gaveta -- "-L". Quoted text containing a space ("ssh -L 5432") is fine.\n'
-    "Reserved for later stages: retag, f, reindex, cred, daemon, ui."
+    "Reserved for later stages: f, reindex, cred, daemon, ui."
 )
 
 

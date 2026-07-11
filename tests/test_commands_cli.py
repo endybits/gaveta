@@ -135,6 +135,66 @@ def test_rm_of_a_never_existing_id_exits_zero(
     assert "already absent" in capsys.readouterr().out
 
 
+# --- retag -------------------------------------------------------------------
+
+
+def test_retag_reclassifies_and_prints_the_retagged_line(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A lone URL captured as a link retags to the same; the line says `retagged`."""
+    _capture("https://sqlite.org/withoutrowid.html")
+    capsys.readouterr()
+
+    assert main(["retag", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "✓ retagged · id 1 · link" in out
+    assert "saved" not in out
+
+
+def test_retag_is_idempotent_on_the_heuristic_path(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No Ollama in tests, so retag re-runs the deterministic heuristic: same fields."""
+    _capture("just a plain note")
+    capsys.readouterr()
+
+    main(["show", "1", "--json"])
+    before = json.loads(capsys.readouterr().out)
+    assert main(["retag", "1"]) == 0
+    capsys.readouterr()
+    main(["show", "1", "--json"])
+    after = json.loads(capsys.readouterr().out)
+
+    assert after["type"] == before["type"] == "note"
+    assert after["title"] == before["title"]
+    assert after["content"] == before["content"]
+
+
+def test_retag_touches_updated_at_but_not_created_at(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A reclassification is an update: updated_at moves, created_at holds."""
+    _capture("una nota")
+    capsys.readouterr()
+    main(["show", "1", "--json"])
+    before = json.loads(capsys.readouterr().out)
+
+    assert main(["retag", "1"]) == 0
+    capsys.readouterr()
+    main(["show", "1", "--json"])
+    after = json.loads(capsys.readouterr().out)
+
+    assert after["created_at"] == before["created_at"]
+    assert after["updated_at"] >= before["updated_at"]
+
+
+def test_retag_of_a_missing_id_exits_one(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["retag", "999"]) == 1
+    assert "no item with id 999" in capsys.readouterr().err
+
+
 # --- export ------------------------------------------------------------------
 
 

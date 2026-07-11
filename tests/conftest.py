@@ -60,5 +60,7 @@ def no_real_model(monkeypatch: pytest.MonkeyPatch) -> None:
     from gaveta.brain.heuristic import HeuristicClassifier
 
     heuristic = HeuristicClassifier()
-    monkeypatch.setattr("gaveta.core.make_classifier", lambda *a, **k: heuristic)
-    monkeypatch.setattr("gaveta.cli.make_classifier", lambda *a, **k: heuristic)
+    # Patch every module that reaches for the factory. Miss one and a test hits a real
+    # Ollama on the developer's machine — nondeterministic, and against the rule.
+    for module in ("gaveta.core", "gaveta.cli", "gaveta.subcommands"):
+        monkeypatch.setattr(f"{module}.make_classifier", lambda *a, **k: heuristic)

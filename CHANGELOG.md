@@ -21,6 +21,15 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ### Added
 
+- **`gaveta retag <id>`.** Re-classifies a stored capture, updating its type, title,
+  tags, content, and `updated_at` — the upgrade path for anything saved via the heuristic
+  fallback (capture with no model, `retag` once Ollama is up). Missing id → exit `1`. It
+  prints `✓ retagged · …`, not "saved", because it stored nothing new. `retag` moves from
+  a reserved word to an implemented subcommand.
+- **The saved line shows real classification.** It now reads
+  `✓ saved · id 7 · command · ssh, rds, qa` — id, type, then tags when present (omitted
+  when empty); `· redacted` still composes. `ls` shows the title when the classifier gave
+  one (else the raw text) and appends tags; `show` gains a `content` line.
 - **Classification wired into capture.** The pipeline is now **scan → classify →
   persist**: after the gate clears (or redacts) the text, the classifier fills the saved
   item's type, title, tags, and content. The classifier only ever sees post-gate text —

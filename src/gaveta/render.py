@@ -26,6 +26,7 @@ _LABELS: tuple[tuple[str, str], ...] = (
     ("raw", "raw"),
     ("type", "type"),
     ("title", "title"),
+    ("content", "content"),
     ("tags", "tags"),
     ("created_at", "created"),
     ("updated_at", "updated"),
@@ -78,16 +79,32 @@ def render_json_list(items: list[ItemView]) -> str:
     return json.dumps([json.loads(item.model_dump_json()) for item in items], indent=2)
 
 
-def render_saved(item: ItemView, *, redacted: bool = False) -> str:
-    """The confirmation. Capture is the hot path, and the happy path is now boring.
+def render_saved(item: ItemView, *, verb: str = "saved", redacted: bool = False) -> str:
+    """The confirmation line, one honest verb per operation.
 
-    Stage 1 printed five lines describing a save that never happened. It happens now, so
-    the only news is the id the drawer assigned — plus, when `--redact` rewrote the raw
-    before storing, a `· redacted` marker so the user knows the stored text is not what
-    they typed.
+    Capture prints `saved`; `retag` reuses this with `verb="retagged"`, because it saved
+    nothing new — claiming "saved" for a reclassification is the same soft lie the
+    `rm`-of-an-absent-id message avoids. The line finally earns its keep now that there
+    is real classification to report:
+
+        ✓ saved · id 7 · command · ssh, rds, qa
+
+    The type follows the id; tags, when present, follow the type; and `· redacted` is
+    appended when `--redact` rewrote the raw before storing, so the user knows the
+    stored text is not what they typed. Tags are omitted entirely when empty.
     """
+    tags = f" · {', '.join(item.tags)}" if item.tags else ""
     suffix = " · redacted" if redacted else ""
-    return f"✓ saved · id {item.id} · type {item.type.value}{suffix}"
+    return f"✓ {verb} · id {item.id} · {item.type.value}{tags}{suffix}"
+
+
+def render_retagged(item: ItemView) -> str:
+    """`retag`'s confirmation: the same line, the honest verb. It saved nothing new.
+
+    A redaction marker is not composed here — `retag` re-classifies an already-stored
+    item, it does not re-run the gate, so it cannot newly redact.
+    """
+    return render_saved(item, verb="retagged")
 
 
 def render_blocked(verdict: Verdict) -> str:
@@ -154,7 +171,10 @@ def render_list(items: list[ItemView]) -> str:
     console = _console(buffer)
 
     for item in items:
-        raw = _shorten(item.raw, _LIST_RAW_WIDTH)
-        console.print(f"  {item.id:>4}  {item.type.value:<14}  {raw}")
+        # The readable label when the classifier gave one, else the raw text — the
+        # three-layer story on one line. Tags, when present, trail after a separator.
+        label = _shorten(item.title or item.raw, _LIST_RAW_WIDTH)
+        tags = f"  · {', '.join(item.tags)}" if item.tags else ""
+        console.print(f"  {item.id:>4}  {item.type.value:<14}  {label}{tags}")
 
     return buffer.getvalue()

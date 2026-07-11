@@ -20,6 +20,7 @@ from gaveta.render import (
     render_json_list,
     render_list,
     render_removed,
+    render_retagged,
     render_saved,
 )
 
@@ -44,11 +45,24 @@ def _view(raw: str = "x", *, id: int = 1, **overrides: object) -> ItemView:
     return ItemView(**fields)  # type: ignore[arg-type]
 
 
-# --- render_saved: the capture confirmation ----------------------------------
+# --- render_saved / render_retagged: the confirmation line -------------------
 
 
 def test_saved_names_the_id_and_type() -> None:
-    assert render_saved(_view(id=42)) == "✓ saved · id 42 · type unknown"
+    assert render_saved(_view(id=42, type=ItemType.note)) == "✓ saved · id 42 · note"
+
+
+def test_saved_appends_tags_when_present() -> None:
+    saved = render_saved(_view(id=7, type=ItemType.command, tags=["ssh", "rds", "qa"]))
+
+    assert saved == "✓ saved · id 7 · command · ssh, rds, qa"
+
+
+def test_saved_omits_the_tags_segment_when_empty() -> None:
+    assert (
+        render_saved(_view(id=8, type=ItemType.note, tags=[]))
+        == "✓ saved · id 8 · note"
+    )
 
 
 def test_saved_uses_the_enum_value_not_its_repr() -> None:
@@ -59,13 +73,21 @@ def test_saved_uses_the_enum_value_not_its_repr() -> None:
 
 
 def test_saved_marks_a_redacted_capture() -> None:
-    assert render_saved(_view(id=7), redacted=True) == (
-        "✓ saved · id 7 · type unknown · redacted"
-    )
+    line = render_saved(_view(id=7, type=ItemType.link, tags=["docs"]), redacted=True)
+
+    assert line == "✓ saved · id 7 · link · docs · redacted"
 
 
 def test_saved_omits_the_marker_when_nothing_was_redacted() -> None:
     assert "redacted" not in render_saved(_view(id=7), redacted=False)
+
+
+def test_retagged_uses_the_honest_verb_not_saved() -> None:
+    """retag saved nothing new — the line must say so, not claim a save."""
+    line = render_retagged(_view(id=7, type=ItemType.command, tags=["ssh", "rds"]))
+
+    assert line == "✓ retagged · id 7 · command · ssh, rds"
+    assert "saved" not in line
 
 
 # --- render_blocked: the ✋ refusal -------------------------------------------
@@ -124,11 +146,18 @@ def test_item_renders_timestamps_in_local_time_to_the_second() -> None:
     assert ":03:11" in output
 
 
-def test_item_shows_a_dash_for_an_absent_title_and_tags() -> None:
-    output = render_item(_view(title=None, tags=[]))
+def test_item_shows_a_dash_for_an_absent_title_content_and_tags() -> None:
+    output = render_item(_view(title=None, content=None, tags=[]))
 
     assert "  title   : —" in output
+    assert "  content : —" in output
     assert "  tags    : —" in output
+
+
+def test_item_shows_the_content_when_present() -> None:
+    output = render_item(_view(content="ssh rds-qa && systemctl restart pg"))
+
+    assert "  content : ssh rds-qa && systemctl restart pg" in output
 
 
 def test_item_joins_tags_with_commas() -> None:
@@ -173,6 +202,31 @@ def test_list_shows_the_id_and_type_of_each_row() -> None:
     assert "3" in output
     assert "note" in output
     assert "a note" in output
+
+
+def test_list_prefers_the_title_over_raw_when_present() -> None:
+    """The readable label the classifier gave, not the raw text, when there is one."""
+    output = render_list(
+        [_view("ssh -L 5432:rds:5432 jump  # tunnel", id=5, title="qa db tunnel")]
+    )
+
+    assert "qa db tunnel" in output
+    assert "jump  # tunnel" not in output
+
+
+def test_list_appends_tags_when_present() -> None:
+    output = render_list(
+        [_view("x", id=6, type=ItemType.link, tags=["docs", "sqlite"])]
+    )
+
+    assert "docs, sqlite" in output
+
+
+def test_list_omits_tags_when_empty() -> None:
+    output = render_list([_view("x", id=6, tags=[])]).rstrip("\n")
+
+    assert not output.endswith("·")
+    assert " · " not in output
 
 
 def test_list_shortens_a_long_raw_to_one_line() -> None:

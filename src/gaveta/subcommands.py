@@ -13,6 +13,8 @@ import sys
 from collections.abc import Callable
 
 from gaveta import core
+from gaveta.brain import make_classifier
+from gaveta.config import ConfigError, load_config
 from gaveta.db.models import ItemType
 from gaveta.db.session import session as db_session
 from gaveta.exit_codes import ExitCode
@@ -22,6 +24,7 @@ from gaveta.render import (
     render_json_list,
     render_list,
     render_removed,
+    render_retagged,
 )
 
 # A handler takes the tokens *after* the subcommand name and returns an exit code.
@@ -82,6 +85,36 @@ def _show(args: list[str]) -> int:
     return ExitCode.OK
 
 
+def _retag(args: list[str]) -> int:
+    """`gaveta retag <id>` — re-classify a capture, or exit 1 if there is no such id.
+
+    The upgrade path: a capture saved via the heuristic fallback (no Ollama) gets a real
+    classification once the model is available. Prints the retagged line — not "saved",
+    since nothing new was stored.
+    """
+    parser = argparse.ArgumentParser(prog="gaveta retag", add_help=True)
+    parser.add_argument("id", type=int, help="the id from `gaveta ls`")
+    parser.add_argument("--json", action="store_true", dest="json_out")
+    parsed = parser.parse_args(args)
+
+    # A broken config.toml is a usage error, before any work — same as the capture path.
+    try:
+        classifier = make_classifier(load_config())
+    except ConfigError as exc:
+        print(f"[gaveta] {exc}", file=sys.stderr)
+        return ExitCode.USAGE
+
+    with db_session() as session:
+        item = core.retag(parsed.id, session=session, classifier=classifier)
+
+    if item is None:
+        print(f"[gaveta] ✗ no item with id {parsed.id}", file=sys.stderr)
+        return ExitCode.NOT_FOUND
+
+    _emit(render_json(item) if parsed.json_out else render_retagged(item))
+    return ExitCode.OK
+
+
 def _rm(args: list[str]) -> int:
     """`gaveta rm <id>` — idempotent delete. Exit 0 whether or not the id was there."""
     parser = argparse.ArgumentParser(prog="gaveta rm", add_help=True)
@@ -115,4 +148,5 @@ DISPATCH: dict[str, Handler] = {
     "show": _show,
     "rm": _rm,
     "export": _export,
+    "retag": _retag,
 }
