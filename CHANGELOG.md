@@ -9,6 +9,15 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-11
+
+Stage 4 — local classification. After the gate clears a capture, a local model (Ollama)
+classifies it (`link` / `command` / `note`), extracts a short title and tags, and pulls out
+the clean copyable `content` — the three-layer story: `raw` is everything, `content` is the
+copyable part, `title` is the label. No Ollama? Gaveta degrades to heuristics and never
+blocks a capture; `gaveta retag <id>` upgrades it later. The model reads only post-gate
+text, and the network fence opens for `gaveta/brain` alone, localhost-only (ADR-004).
+
 ### Changed
 
 - **`CaptureRequest.type` widened** from `unknown` to the wire vocabulary the classifier
@@ -192,7 +201,8 @@ Stage 0 — scaffolding & governance. No product behavior yet: `gaveta` prints i
 - The version is read from installed distribution metadata rather than duplicated as a
   literal, so `pyproject.toml` is the single source of truth.
 
-[Unreleased]: https://github.com/endybits/gaveta/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/endybits/gaveta/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/endybits/gaveta/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/endybits/gaveta/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/endybits/gaveta/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/endybits/gaveta/compare/v0.0.1...v0.1.0
