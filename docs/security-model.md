@@ -14,13 +14,14 @@ trusted to be perfect, because none is.
 
 | Layer | What it does | Status |
 |---|---|---|
-| 1 · Deterministic gate | Regexes for known secret formats reject on sight | **Stage 3 (here)** |
-| 2 · Contextual / model | A local model flags what the format rules miss | Stage 4 |
-| 3 · Human confirmation | Ambiguous cases ask you before saving | **Stage 3 (here)** |
+| 1 · Deterministic gate | Regexes for known secret formats reject on sight | **Stage 3** |
+| 2 · Contextual / model | A local model reads only post-gate text | **Stage 4 (here)** |
+| 3 · Human confirmation | Ambiguous cases ask you before saving | **Stage 3** |
 | 4 · Containment | Everything stays local; outbound paths re-scan | Architecture + Stage 9 |
 
-Stage 3 delivers **layers 1 and 3**. Layer 4 already exists — it *is* the local-first
-architecture — and layer 2 arrives with the local model in Stage 4.
+Stage 3 delivered **layers 1 and 3**. Layer 4 already exists — it *is* the local-first
+architecture. Layer 2 arrives here, in Stage 4, with the local model — but with a
+deliberately modest job (read on).
 
 ## Layer 1 — the deterministic gate
 
@@ -52,6 +53,33 @@ $ gaveta "deploy key: AKIAIOSFODNN7EXAMPLE"
    instead — that flow lands in a later release (gaveta cred --new).
    To keep this capture now with the secret masked:  gaveta --redact
 ```
+
+## Layer 2 — the contextual model (and what it is *not*)
+
+Stage 4 adds a local model that classifies each capture — `link`, `command`, or `note` —
+and extracts a title, tags, and the clean copyable `content`. It is the "contextual" layer
+in the defense table, but its security job is deliberately modest, and honesty about that
+matters more than the layer number.
+
+**The model sees only post-gate text.** The gate runs *first*, always: `scan → classify →
+persist`. A capture the gate blocks never reaches the model at all, and on the `--redact`
+path the model is handed the `[REDACTED]` text — never the raw secret. This is not merely
+the design; it is **asserted by a test** that drives a blocked-then-redacted capture and
+checks that the classifier's input contains `[REDACTED]` and not the original secret.
+
+**The model is a classifier, not a second detector.** It is not asked "is this a secret?"
+and its verdict never blocks a capture. So it does not add recall on top of layer 1 the way
+a second scanner would. What it adds is *containment discipline*: because it only ever reads
+text the gate already cleared, a secret the gate missed does not get *more* exposed by
+classification — the model never sees anything the database is not already about to hold.
+
+**The model is optional, and degrades to heuristics.** Ollama absent, slow, or broken?
+Classification falls back to deterministic heuristics and the capture is saved anyway
+(never blocked, never lost). That means layer 2 may simply be *absent* on a given machine —
+another reason the real security guarantees live in layers 1, 3, and 4, not here.
+
+See [ADR-004](adr/ADR-004-local-classification.md) for the model choice, the localhost-only
+transport, and the timing.
 
 ## Layer 3 — human confirmation for the ambiguous middle
 
@@ -130,8 +158,10 @@ So containment matters as much as detection:
   every payload it emits, reusing this stage's exact corpus — a second chance to catch what
   the first pass missed before anything leaves the machine.
 
-A secret that slips past layer 1 is caught by layer 2 or a human at layer 3; one that slips
-past all three still cannot leave your machine, because layer 4 gives it nowhere to go.
+A secret that slips past layer 1 may still be caught by a human at layer 3; one that slips
+past both still cannot leave your machine, because layer 4 gives it nowhere to go. Layer 2
+is not counted on to catch it — it is a classifier, not a detector (see above), and it only
+ever reads text the gate already cleared.
 
 ## Honest limits
 
