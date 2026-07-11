@@ -65,6 +65,13 @@ machine**, and until it runs, the default carries exactly that caveat. This is w
 exists: the moment the samples say a different model is better, changing it costs one line and no
 code.
 
+**Prompt revision (post-release).** The first live captures on `qwen2.5:3b-instruct` exposed
+prompt weaknesses, not model ones: a command containing a URL was miscalled a `link`, and tags
+drifted toward importance/sentiment (`important`, `secret`) instead of subject matter. The prompt
+was revised — command beats link when both are present, tags are scoped to technologies/systems/
+topics, and the capture is fenced as untrusted data — and shipped as its own change. The pending
+20-sample validation therefore applies to the **revised** prompt; the model default is unaffected.
+
 ## Decision 2 — `gaveta.brain` reaches Ollama with plain `httpx`, and the fence opens for that module only
 
 **`OllamaClassifier` POSTs to `{endpoint}/api/generate` with plain `httpx` (not the official
