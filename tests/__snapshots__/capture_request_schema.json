@@ -23,8 +23,13 @@
       "type": "array"
     },
     "type": {
-      "const": "unknown",
       "default": "unknown",
+      "enum": [
+        "link",
+        "command",
+        "note",
+        "unknown"
+      ],
       "title": "Type",
       "type": "string"
     }

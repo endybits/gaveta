@@ -17,10 +17,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gaveta.db.models import ItemType
 
-# Widened in Stage 4, when classification lands. Until then a capture is only
-# ever `unknown`, and the Literal makes that a type error to violate rather than
-# a convention to remember.
-CaptureType = Literal["unknown"]
+# The wire vocabulary a capture may carry, widened in Stage 4 now that the classifier
+# emits a type. It is deliberately narrower than the storage enum `ItemType`: `link`,
+# `command`, `note`, and `unknown` (the heuristic/degraded label) are the values a
+# classification can produce — `credential_ref` is the gate's and the vault's business
+# (Stage 6), never a live classification, so it stays out of the wire contract. The
+# Literal makes any other value a type error rather than a convention to remember.
+CaptureType = Literal["link", "command", "note", "unknown"]
 
 # The interface is the CLI, whether the text arrived as an argument or over a
 # pipe. `stdin` is a transport, not a source, so it is deliberately not a value

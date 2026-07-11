@@ -86,15 +86,24 @@ def test_no_docstring_survives_into_a_snapshot() -> None:
         assert "description" not in snapshot.read_text()
 
 
-# --- CaptureRequest: the input contract, unchanged since Stage 1 --------------
+# --- CaptureRequest: the input contract ---------------------------------------
 
 
-def test_defaults_are_the_pre_classification_values() -> None:
+def test_default_type_is_unknown() -> None:
+    """A capture is `unknown` until something classifies it; the default held."""
     request = CaptureRequest(raw="x", captured_at=datetime.now(UTC))
 
     assert request.type == "unknown"
     assert request.tags == []
     assert request.source == "cli"
+
+
+@pytest.mark.parametrize("value", ["link", "command", "note", "unknown"])
+def test_type_accepts_the_widened_wire_vocabulary(value: str) -> None:
+    """Stage 4 widened CaptureType to the values the classifier can emit."""
+    request = CaptureRequest(raw="x", captured_at=datetime.now(UTC), type=value)  # type: ignore[arg-type]
+
+    assert request.type == value
 
 
 def test_tags_default_is_not_shared_between_instances() -> None:
@@ -112,9 +121,18 @@ def test_raw_is_required() -> None:
         CaptureRequest(captured_at=datetime.now(UTC))  # type: ignore[call-arg]
 
 
-@pytest.mark.parametrize("field, value", [("type", "note"), ("source", "stdin")])
-def test_literal_fields_reject_later_stage_values(field: str, value: str) -> None:
-    """Widening these is a Stage 4 decision, not something a caller may do."""
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        # `credential_ref` is storage-only — the gate's and vault's business (Stage 6),
+        # never a live classification, so it stays off the wire contract.
+        ("type", "credential_ref"),
+        ("type", "banana"),
+        ("source", "stdin"),
+    ],
+)
+def test_literal_fields_reject_out_of_vocabulary_values(field: str, value: str) -> None:
+    """The widened `type` still rejects storage-only and nonsense; `source` too."""
     kwargs: dict[str, object] = {"raw": "x", "captured_at": datetime.now(UTC)}
     kwargs[field] = value
 
