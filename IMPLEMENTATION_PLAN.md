@@ -33,7 +33,7 @@ Definition of Done checklist is complete.
 | License | Apache 2.0 |
 | Commits | [Conventional Commits](https://www.conventionalcommits.org/) — `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:` |
 | Branches | `stage/N-short-name` (e.g. `stage/1-simulated-capture`), **rebase-merge** to `main`; every commit must leave the tree green |
-| Tags | `v0.N.0` at each stage close (stage number = minor version until 1.0) |
+| Tags | `v0.N.0` at each stage close (stage number = minor); see the *Versioning policy* below for why `v1.0.0` comes after the first public release, not at it |
 | Tests | `pytest`; every stage adds tests; CI must be green to merge |
 | Style | `ruff` (lint + format), `mypy --strict` on `src/` |
 | Python | 3.11+ · package name on PyPI: `gaveta-cli` · installed commands: `gaveta` and `gv` (alias, same entry point) |
@@ -347,7 +347,24 @@ every outbound payload (second chance for the gate).
 
 **Definition of Done**
 - [ ] `pipx install gaveta-cli` works from a clean machine
-- [ ] Tag `v1.0.0` 🎉
+- [ ] Tag `v0.10.0` (first public release — see *Versioning policy* below)
+
+---
+
+## Versioning policy
+
+- **Stages tag `v0.N.0`**, where `N` is the stage number (stage number = minor). Unchanged
+  through Stage 10: packaging & first public release ships as **`v0.10.0`**, not `v1.0.0`.
+- **Post-Stage-10 fixes and polish continue on the 0.x line** — `v0.11.x`, `v0.12.x`, and so
+  on. Going public does not force a `1.0.0`.
+- **`v1.0.0` is not a completion badge; it is a semver stability promise** over the public
+  contracts — the CLI surface, the `--json`/export schemas, the `config.toml` format, and the
+  exit codes. It is tagged only once those contracts have survived real-world usage without
+  breaking changes: deliberately *after* the first public release, not *at* it. Mature tools
+  ship publicly at 0.x for years (Ollama is at 0.31 today); honesty about stability beats a
+  round number.
+- **Until `v1.0.0`, breaking changes are allowed at a minor bump** but must be called out in
+  `CHANGELOG.md` under a **Breaking** heading.
 
 ---
 

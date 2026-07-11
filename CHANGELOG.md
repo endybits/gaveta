@@ -4,10 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Until `v1.0.0` the minor version tracks the stage number from
-[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
+Through Stage 10 the minor version tracks the stage number from
+[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md); the first public release is `v0.10.0`.
+`v1.0.0` is reserved for contract stability, not the first public release — see the
+*Versioning policy* in the plan. Until `v1.0.0`, breaking changes are allowed at a minor bump
+and are called out under a **Breaking** heading.
 
 ## [Unreleased]
+
+### Changed
+
+- **spec:** versioning policy — the first public release is `v0.10.0`, and `v1.0.0` is reserved
+  for stability of the public contracts (CLI surface, `--json`/export schemas, `config.toml`
+  format, exit codes), tagged only after they survive real-world use without breaking changes.
 
 ## [0.4.0] — 2026-07-11
 
