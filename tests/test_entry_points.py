@@ -13,9 +13,16 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import seed_offline_config
+
 
 def run_dash_m(*args: str, home: Path) -> subprocess.CompletedProcess[str]:
-    """Invoke `python -m gaveta` in a fresh interpreter, against `home`."""
+    """Invoke `python -m gaveta` in a fresh interpreter, against `home`.
+
+    Seeds an offline config so a capturing subprocess falls back to the heuristic and
+    never reaches a real Ollama (see `seed_offline_config`).
+    """
+    seed_offline_config(home)
     return subprocess.run(
         [sys.executable, "-m", "gaveta", *args],
         capture_output=True,

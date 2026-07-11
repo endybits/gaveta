@@ -11,9 +11,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tests.conftest import seed_offline_config
+
 
 def run_gaveta(*args: str, home: Path) -> subprocess.CompletedProcess[str]:
-    """Invoke Gaveta in a brand-new interpreter, against `home`."""
+    """Invoke Gaveta in a brand-new interpreter, against `home`.
+
+    Seeds an offline config so the subprocess never reaches a real Ollama and
+    classification is the deterministic heuristic everywhere (`seed_offline_config`).
+    """
+    seed_offline_config(home)
     return subprocess.run(
         [sys.executable, "-m", "gaveta", *args],
         capture_output=True,

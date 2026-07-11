@@ -13,7 +13,9 @@ import sys
 from collections.abc import Callable
 
 from gaveta import __version__, core, gate
+from gaveta.brain import Classifier, make_classifier
 from gaveta.commands import implemented_head, reserved_head, reserved_message
+from gaveta.config import ConfigError, load_config
 from gaveta.db.session import session as db_session
 from gaveta.exit_codes import ExitCode
 from gaveta.gate import Verdict
@@ -133,12 +135,21 @@ def main(argv: list[str] | None = None) -> int:
         print("\n[gaveta] nothing to capture.", file=sys.stderr)
         return ExitCode.USAGE
 
+    # The classifier is built once here so a broken config.toml fails as a usage error
+    # before any capture work begins, rather than deep inside the pipeline.
+    try:
+        classifier = make_classifier(load_config())
+    except ConfigError as exc:
+        print(f"[gaveta] {exc}", file=sys.stderr)
+        return ExitCode.USAGE
+
     return _capture(
         raw,
         redact=args.redact,
         json_out=args.json_out,
         interactive=interactive,
         prompt=_prompt_choice,
+        classifier=classifier,
     )
 
 
@@ -163,6 +174,7 @@ def _capture(
     json_out: bool,
     interactive: bool,
     prompt: Callable[[], str],
+    classifier: Classifier,
 ) -> int:
     """The capture path, gate and all. Returns the exit code.
 
@@ -173,7 +185,7 @@ def _capture(
     invariant regardless, so a bug here can never persist a known secret unredacted.
     """
     if redact:
-        return _save(raw, redact=True, json_out=json_out)
+        return _save(raw, redact=True, json_out=json_out, classifier=classifier)
 
     verdict = gate.scan(raw)
     if verdict.blocked:
@@ -181,9 +193,14 @@ def _capture(
         return ExitCode.BLOCKED
     if verdict.suspicious:
         return _resolve_suspicious(
-            raw, verdict, json_out=json_out, interactive=interactive, prompt=prompt
+            raw,
+            verdict,
+            json_out=json_out,
+            interactive=interactive,
+            prompt=prompt,
+            classifier=classifier,
         )
-    return _save(raw, redact=False, json_out=json_out)
+    return _save(raw, redact=False, json_out=json_out, classifier=classifier)
 
 
 def _resolve_suspicious(
@@ -193,6 +210,7 @@ def _resolve_suspicious(
     json_out: bool,
     interactive: bool,
     prompt: Callable[[], str],
+    classifier: Classifier,
 ) -> int:
     """A maybe-secret. Ask the human if we can; refuse with an escape hatch if not."""
     if not interactive:
@@ -201,15 +219,15 @@ def _resolve_suspicious(
 
     choice = prompt().strip().lower()[:1]
     if choice == "s":
-        return _save(raw, redact=False, json_out=json_out)
+        return _save(raw, redact=False, json_out=json_out, classifier=classifier)
     if choice == "r":
-        return _save(raw, redact=True, json_out=json_out)
+        return _save(raw, redact=True, json_out=json_out, classifier=classifier)
     # "v", empty, or anything unrecognized → refuse. Saving is opt-in, not the default.
     print(render_blocked(verdict), file=sys.stderr)
     return ExitCode.BLOCKED
 
 
-def _save(raw: str, *, redact: bool, json_out: bool) -> int:
+def _save(raw: str, *, redact: bool, json_out: bool, classifier: Classifier) -> int:
     """Persist through the core and print the confirmation. Exit 0.
 
     The `· redacted` marker reflects whether the stored text actually differs from what
@@ -217,7 +235,7 @@ def _save(raw: str, *, redact: bool, json_out: bool) -> int:
     mislead. The stored `raw` comes back on the view, so the comparison is exact.
     """
     with db_session() as session:
-        saved = core.capture(raw, session=session, redact=redact)
+        saved = core.capture(raw, session=session, redact=redact, classifier=classifier)
 
     was_redacted = redact and saved.raw != raw
     view = (
