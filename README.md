@@ -13,15 +13,15 @@ indexes them; retrieve them later by *meaning*, not by remembering where you put
 
 ```
 $ gaveta "ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database"
-✓ saved as command · tagged: ssh, rds, qa
+✓ saved · id 7 · command · ssh, rds, qa
 
 $ gaveta f "how did I connect to the qa database?"
 1. [command] SSH tunnel to qa RDS   →  gaveta show 42 · -c to copy
 ```
 
-☝️ That is the destination. **What actually runs today** persists captures to a local
-database and lets you list, show, remove, and export them — see
-[What works right now](#what-works-right-now).
+☝️ That is the destination. **What actually runs today** captures, classifies (with a local
+model), lists, shows, reclassifies, removes, and exports — but not yet the semantic `f`
+search — see [What works right now](#what-works-right-now).
 
 ## Security model (read this first)
 
@@ -47,27 +47,33 @@ stage. Nothing below is stable until `v1.0.0`.
 
 ## What works right now
 
-**Stage 3 — the secret gate.** Captures are stored in a local SQLite database at
-`~/.gaveta/gaveta.db`, and **a deterministic secret gate now scans every capture before it
-is written**. You can list, show, remove, and export items. No model runs yet
-(classification is Stage 4), so a captured item is still typed `unknown`.
+**Stage 4 — local classification.** Captures are stored in a local SQLite database at
+`~/.gaveta/gaveta.db`, the deterministic secret gate scans every capture before it is
+written, and **a local model now classifies each capture** — its type (`link` / `command`
+/ `note`), a title, tags, and the clean copyable `content`. No Ollama? Gaveta degrades to
+heuristics and never blocks a capture; `gaveta retag <id>` upgrades it later.
 
 ```
 $ gaveta "ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database"
-✓ saved · id 1 · type unknown
+✓ saved · id 1 · command · ssh, rds, qa
 
 $ gaveta ls
-     1  unknown         ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database
+     1  command         SSH tunnel to qa database  · ssh, rds, qa
 
 $ gaveta show 1
   id      : 1
   raw     : ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database
-  type    : unknown
-  title   : —
-  tags    : —
-  created : 2026-07-10T09:14:03-05:00
-  updated : 2026-07-10T09:14:03-05:00
+  type    : command
+  title   : SSH tunnel to qa database
+  content : ssh -L 5432:rds-qa:5432 jump-host
+  tags    : ssh, rds, qa
+  created : 2026-07-11T09:14:03-05:00
+  updated : 2026-07-11T09:14:03-05:00
 ```
+
+The three layers: `raw` is everything you typed, `content` is the copyable part
+(the bare command here), `title` is the readable label. `content` is null for plain prose.
+Ran the capture before Ollama was up? `gaveta retag 1` re-classifies it in place.
 
 Pipe it instead, with `-` or on its own — the two are equivalent:
 
@@ -81,8 +87,8 @@ contract every later stage honors, and it is snapshot-tested, so it cannot drift
 accident. `created_at` is UTC (`Z`); the human views show your local time.
 
 ```
-$ gaveta "x" --json
-{"id":2,"raw":"x","type":"unknown","title":null,"tags":[],"created_at":"2026-07-10T14:14:03.482Z","updated_at":"2026-07-10T14:14:03.482Z"}
+$ gaveta "https://sqlite.org/withoutrowid.html" --json
+{"id":2,"raw":"https://sqlite.org/withoutrowid.html","type":"link","title":"sqlite.org/withoutrowid.html","content":"https://sqlite.org/withoutrowid.html","tags":[],"created_at":"2026-07-11T14:14:03.482Z","updated_at":"2026-07-11T14:14:03.482Z"}
 ```
 
 **The secret gate.** A known-format secret — an AWS key, a GitHub/Slack/Stripe token, a
@@ -104,7 +110,7 @@ detected part with `[REDACTED]` and saves the rest, from any source:
 
 ```
 $ gaveta --redact "deploy key: AKIAIOSFODNN7EXAMPLE"
-✓ saved · id 3 · type unknown · redacted
+✓ saved · id 3 · note · redacted
 ```
 
 Full details, honest limits, and the four-layer design are in
@@ -116,6 +122,7 @@ Manage what you have captured:
 |---|---|
 | `gaveta ls [type]` | List captures, newest first; optionally filter by type |
 | `gaveta show <id>` | Show one capture in full |
+| `gaveta retag <id>` | Re-classify a capture (type/title/tags/content) |
 | `gaveta rm <id>` | Remove one (idempotent — a second `rm` of the same id is fine) |
 | `gaveta export` | Dump every capture as a JSON array to stdout |
 
@@ -127,8 +134,8 @@ Three things worth knowing:
 
 - **`gv` is an alias for `gaveta`.** Both commands are installed and point at the same
   entry point, so `gv ls` and `gv "some text"` work with less typing.
-- **Reserved words.** `retag`, `f`, `reindex`, `cred`, `daemon`, and `ui` are reserved for
-  the stages that implement them; `gaveta f "query"` exits with a message naming its stage
+- **Reserved words.** `f`, `reindex`, `cred`, `daemon`, and `ui` are reserved for the
+  stages that implement them; `gaveta f "query"` exits with a message naming its stage
   rather than capturing "f". To capture a reserved word as text, use `gaveta -- "f"`.
 - **Text starting with a dash.** A bare `-L` looks like an option to any argument parser.
   Quoted text with a space (`gaveta "ssh -L 5432"`) is fine; a lone dash token needs
@@ -145,10 +152,10 @@ The rest of the destination, not yet implemented. See
 
 | Command | What it does | Status |
 |---|---|---|
-| `gaveta "some text"` | Capture anything — classification is automatic | capture works; classification is Stage 4 |
+| `gaveta "some text"` | Capture anything — classification is automatic | ✅ works |
 | `echo "..." \| gaveta -` | Capture from stdin / clipboard pipe | ✅ works |
 | `gaveta ls [type]` | Browse by category | ✅ works |
-| `gaveta show <id>` · `rm <id>` · `export` | Inspect, remove, back up | ✅ works |
+| `gaveta show <id>` · `retag <id>` · `rm <id>` · `export` | Inspect, reclassify, remove, back up | ✅ works |
 | `gaveta f "query"` | Semantic find (`-c` copies best hit to clipboard) | Stage 5 |
 | `gaveta cred <name>` | Resolve a credential ref → vault → clipboard (auto-clear) | Stage 6 |
 | `gaveta cred --new` | Create a vault entry + save its reference | Stage 6 |
@@ -157,9 +164,31 @@ The rest of the destination, not yet implemented. See
 ## Requirements
 
 - Python 3.11+
-- [Ollama](https://ollama.com) (optional but recommended — enables classification
-  and semantic search; without it Gaveta degrades to simple heuristics)
+- [Ollama](https://ollama.com) — **optional but recommended.** It powers classification
+  (and, from Stage 5, semantic search). Without it, Gaveta degrades to simple heuristics
+  and never blocks a capture. To enable it, install Ollama and pull the default model:
+
+  ```bash
+  ollama pull qwen2.5:3b-instruct
+  ```
+
 - Bitwarden CLI (`bw`) or KeePassXC (`keepassxc-cli`) for the credentials flow (optional)
+
+### Configuration
+
+Gaveta reads an optional `~/.gaveta/config.toml` (honoring `GAVETA_HOME`). Absent, it uses
+the defaults below; a malformed file, or an endpoint that is not localhost, is a usage
+error (exit `2`). Gaveta never talks to a non-local model.
+
+```toml
+[model]
+name     = "qwen2.5:3b-instruct"   # any model you have pulled in Ollama
+endpoint = "http://localhost:11434"  # must be localhost
+timeout  = 2.5                       # seconds; a slower answer falls back to heuristics
+```
+
+Classification runs synchronously at capture with that hard timeout: if the model cannot
+answer in time, Gaveta saves with heuristics and you can `gaveta retag <id>` later.
 
 ## Development quickstart
 

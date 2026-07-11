@@ -23,16 +23,33 @@ by running the migrations from scratch. There is no other state; the file is the
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | INTEGER PK | The id `ls`, `show`, and `rm` speak. |
+| `id` | INTEGER PK | The id `ls`, `show`, `retag`, and `rm` speak. |
 | `raw` | TEXT NOT NULL | Exactly what you captured, unmodified. |
-| `type` | VARCHAR + CHECK | One of the five below. `unknown` until Stage 4 classifies. |
-| `title` | TEXT NULL | Nullable for now; Stage 4's classifier fills it. |
+| `type` | VARCHAR + CHECK | One of the five below. The classifier sets it (Stage 4). |
+| `title` | TEXT NULL | The readable label the classifier proposes. |
+| `content` | TEXT NULL | The clean copyable payload (see the three layers below). |
 | `tags_json` | TEXT NOT NULL | A JSON array of strings. Surfaced in code as `tags`. |
 | `created_at` | DATETIME NOT NULL | UTC. See "Time" below. |
-| `updated_at` | DATETIME NOT NULL | UTC. |
+| `updated_at` | DATETIME NOT NULL | UTC. `retag` moves it; capture sets it equal to `created_at`. |
 
 Two indexes: `ix_items_created_at` (`ls` orders by it, newest first) and `ix_items_type`
 (`ls <type>` filters on it).
+
+### The three layers: raw, content, title
+
+A capture is stored in three layers, and each answers a different question:
+
+- **`raw`** — *everything you captured*, immutable. The connection string with the note
+  around it, the command with its explanation, the URL amid a sentence. It is never
+  rewritten (except by `--redact`, at capture time, before it is ever stored).
+- **`content`** — *the clean copyable part*, narrative stripped: the bare command, the
+  bare URL, the bare snippet. Nullable, because plain prose has no copyable payload. The
+  local model extracts it; the heuristic fallback fills it only for the trivially
+  extractable case (a lone URL), and leaves it null otherwise.
+- **`title`** — *the readable label*, a short human-facing name.
+
+`raw` is what you said; `content` is what you'll copy; `title` is what you'll skim.
+`retag <id>` re-derives `content`, `title`, `type`, and `tags` from `raw`.
 
 ### The `type` enum
 
@@ -41,13 +58,15 @@ link · command · note · credential_ref · unknown
 ```
 
 Stored as `VARCHAR` plus a **named** CHECK constraint (`ck_items_item_type`) — SQLite has
-no native enum, and the name is what lets a later migration widen the set under SQLite's
-batch mode. All five members exist from day one at the storage level, even though a Stage 2
-capture is only ever `unknown`: classification lands in Stage 4.
+no native enum, and the name is what let Stage 4's migration widen the set under SQLite's
+batch mode. All five members exist at the storage level.
 
-The wire model that a *caller* provides (`CaptureRequest`) is narrower — its `type` is
-fixed at `unknown` — so a caller cannot assert a classification the system has not
-performed. The two vocabularies are joined in one place, `gaveta.mapping`.
+The wire model that a *caller* provides (`CaptureRequest`) is narrower: its `type` is one
+of `link`, `command`, `note`, `unknown` — the values the classifier emits. `credential_ref`
+is storage-only, the vault's business (Stage 6), never a live classification. `unknown` is
+the degraded label a capture would carry only if classification produced nothing usable;
+in practice even the heuristic floor never leaves a capture `unknown`. The two vocabularies
+are joined in one place, `gaveta.mapping`.
 
 ## Time
 
