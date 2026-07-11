@@ -14,6 +14,7 @@ HOME_ENV_VAR = "GAVETA_HOME"
 
 _DEFAULT_HOME = ".gaveta"
 _DB_FILENAME = "gaveta.db"
+_CONFIG_FILENAME = "config.toml"
 
 # Owner-only. The drawer holds credential *references* from Stage 6 onward, and a
 # world-readable default is not something a later stage can take back: directories
@@ -36,6 +37,11 @@ def gaveta_home() -> Path:
 def db_path() -> Path:
     """The SQLite file. Deleting it resets the world, by design."""
     return gaveta_home() / _DB_FILENAME
+
+
+def config_path() -> Path:
+    """The optional `config.toml`. Absent means defaults (Stage 4, ADR-004)."""
+    return gaveta_home() / _CONFIG_FILENAME
 
 
 def ensure_home() -> Path:
