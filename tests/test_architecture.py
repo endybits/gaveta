@@ -111,41 +111,49 @@ def test_only_brain_may_import_httpx() -> None:
         )
 
 
-# A concrete endpoint literal: `scheme://` immediately followed by a real host — a
-# bracketed IPv6 literal, or a run of hostname characters (letters/digits/`.`/`-`). A
-# URL-*matching* regex (`…://[^\s…]+`) has `://` but is followed by a metacharacter, not
-# a host, so this deliberately does not flag it. What it flags is a hardcoded URL that
-# would actually dial out.
-_CONCRETE_URL_RE = re.compile(
-    r"[a-zA-Z][a-zA-Z0-9+.\-]*://(?:\[[0-9a-fA-F:]+\]|[\w.\-]+)"
+# An *endpoint* literal: a string that is, in whole, a `scheme://host[:port][/path]` —
+# the shape a URL an HTTP client would be handed takes. Anchored at both ends so it
+# matches a bare endpoint constant (`"http://localhost:11434"`) but NOT a paragraph that
+# merely mentions a URL (a prompt's example link is text, not an endpoint), and NOT a
+# URL-*matching* regex (whose host position holds a metacharacter, not a host).
+_ENDPOINT_RE = re.compile(
+    r"[a-zA-Z][a-zA-Z0-9+.\-]*://(?:\[(?P<v6>[0-9a-fA-F:]+)\]|(?P<host>[\w.\-]+))"
+    r"(?::\d+)?(?:/\S*)?$"
 )
 
 
-def _hosts_in(text: str) -> list[str]:
-    """Every concrete host named by a `scheme://host` literal in `text`."""
-    return [
-        match.group(0).split("://", 1)[1].strip("[]")
-        for match in _CONCRETE_URL_RE.finditer(text)
-    ]
+def _endpoint_host(text: str) -> str | None:
+    """The host of `text` when the whole literal is a URL endpoint, else None.
+
+    A bare endpoint string is flagged; a longer text that embeds a URL (a prompt) is not
+    — such a literal is data the code shows a model, not an address it dials.
+    """
+    match = _ENDPOINT_RE.match(text.strip())
+    if match is None:
+        return None
+    return match.group("v6") or match.group("host")
 
 
 def test_brain_names_no_non_localhost_url() -> None:
     """Import scope is necessary but not sufficient — the AST sees `import httpx`, not
     the URL it dials. So the one module holding an HTTP client may name only a local
-    host: any concrete `scheme://host` literal in `brain` must point at localhost. A
-    non-local default URL anywhere in `brain` fails the build (ADR-004, layer-4
-    containment). A URL-matching *regex* names no host and is not flagged."""
+    host: any string literal that *is* a `scheme://host` endpoint must point at
+    localhost. A non-local endpoint anywhere in `brain` fails the build (ADR-004, layer
+    4 containment). A URL embedded in prose (a prompt's example link) is data, not an
+    endpoint, and is not flagged."""
     brain_files = [p for p in _python_files() if _is_brain(p)]
     for path in brain_files:
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
                 continue
-            for host in _hosts_in(node.value):
-                assert host in _LOCAL_HOSTS, (
-                    f"{path.relative_to(SRC)} names a non-localhost URL host {host!r}; "
-                    "brain may only ever dial the local machine (ADR-004)"
-                )
+            host = _endpoint_host(node.value)
+            if host is None:
+                continue
+            assert host in _LOCAL_HOSTS, (
+                f"{path.relative_to(SRC)} names a non-local endpoint host {host!r}; "
+                "brain may only ever dial the local machine (ADR-004)"
+            )
 
 
 def test_no_get_secret_symbol_exists_yet() -> None:
