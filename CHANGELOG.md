@@ -21,6 +21,12 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ### Added
 
+- **Classification wired into capture.** The pipeline is now **scan → classify →
+  persist**: after the gate clears (or redacts) the text, the classifier fills the saved
+  item's type, title, tags, and content. The classifier only ever sees post-gate text —
+  a blocked capture never reaches it, and on the redact path it is handed `[REDACTED]`,
+  never the secret (both asserted by the pipeline-order test). A broken `config.toml`
+  fails as a usage error (exit `2`) before any capture work begins.
 - **The `content` column.** A nullable `content` column on `items`, added by an Alembic
   migration — the middle of the three layers (raw / content / title): the clean copyable
   payload with narrative stripped. Existing rows survive the upgrade with `content` NULL;

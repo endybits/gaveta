@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from gaveta import core
+from gaveta.brain.types import Classification
 from gaveta.core import BlockedCapture
 from gaveta.db.models import Item, ItemType
 from gaveta.db.session import session as db_session
@@ -33,9 +34,24 @@ def test_capture_persists_and_returns_the_saved_item(session: Session) -> None:
 
     assert view.id == 1
     assert view.raw == "persist me"
-    assert view.type is ItemType.unknown
-    assert view.title is None
+    # Classified now (heuristic in tests): prose is a note with the text as its title.
+    assert view.type is ItemType.note
+    assert view.title == "persist me"
+    assert view.content is None
     assert view.tags == []
+
+
+def test_a_capture_is_classified_not_left_unknown(session: Session) -> None:
+    """The end-to-end guarantee: a saved capture carries a real type, never `unknown`.
+
+    The heuristic path is the CI truth (no Ollama), and even it never yields `unknown` —
+    a lone URL becomes a link with the bare URL as content.
+    """
+    view = core.capture("https://sqlite.org/withoutrowid.html", session=session)
+
+    assert view.type is ItemType.link
+    assert view.type is not ItemType.unknown
+    assert view.content == "https://sqlite.org/withoutrowid.html"
 
 
 def test_capture_assigns_increasing_ids(session: Session) -> None:
@@ -78,16 +94,30 @@ def test_a_blocked_capture_raises_and_writes_nothing(session: Session) -> None:
     assert len(core.list_items(session=session)) == before
 
 
-def test_the_gate_runs_before_session_add(
-    session: Session, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """gate.scan must fire before anything touches the DB — the order is the property.
+class _RecordingClassifier:
+    """A classifier that records that it ran and captures the text it was handed.
 
-    Records call order: `scan` is wrapped to append to a list, `Session.add` likewise.
-    A blocked capture must have called `scan` and *never* reached `add`.
+    The captured `seen` is what proves the classifier never sees a raw secret: on the
+    redact path it must contain `[REDACTED]` and not the original.
     """
+
+    def __init__(self, calls: list[str]) -> None:
+        self._calls = calls
+        self.seen: str | None = None
+
+    def classify(self, text: str) -> Classification:
+        self._calls.append("classify")
+        self.seen = text
+        return Classification(type=ItemType.note)
+
+
+def _recorder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[list[str], _RecordingClassifier]:
+    """Wire scan/add/classify to append to one shared list, in the order they fire."""
     calls: list[str] = []
     real_scan = core.gate.scan
+    real_add = Session.add
 
     def recording_scan(raw: str) -> object:
         calls.append("scan")
@@ -95,14 +125,61 @@ def test_the_gate_runs_before_session_add(
 
     def recording_add(self: Session, obj: object, *a: object, **k: object) -> None:
         calls.append("add")
+        # Delegate to the real add so the clean/redact routes can commit and refresh —
+        # the recorder observes order, it does not replace persistence.
+        real_add(self, obj, *a, **k)
 
     monkeypatch.setattr(core.gate, "scan", recording_scan)
     monkeypatch.setattr(Session, "add", recording_add)
+    return calls, _RecordingClassifier(calls)
+
+
+def test_pipeline_order_on_a_clean_capture(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """scan → classify → persist. The order is the security property (ADR-004)."""
+    calls, classifier = _recorder(monkeypatch)
+
+    core.capture("just a normal note", session=session, classifier=classifier)
+
+    assert calls == ["scan", "classify", "add"]
+
+
+def test_a_blocked_capture_never_reaches_the_classifier(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A known-format secret is refused after scan — classify and add never run."""
+    calls, classifier = _recorder(monkeypatch)
 
     with pytest.raises(BlockedCapture):
-        core.capture("AKIAIOSFODNN7EXAMPLE", session=session)
+        core.capture("AKIAIOSFODNN7EXAMPLE", session=session, classifier=classifier)
 
-    assert calls == ["scan"], f"expected scan and no add, got {calls}"
+    assert calls == ["scan"], f"expected scan and no classify/add, got {calls}"
+    assert classifier.seen is None
+
+
+def test_the_classifier_only_ever_sees_post_gate_text(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The redact path: the classifier is handed the redacted text, never the secret.
+
+    This is the one route where "the model only ever sees post-gate text" could silently
+    break — a blocked value is redacted and *does* go on to classify. So assert both
+    the order and, crucially, what the classifier was given.
+    """
+    calls, classifier = _recorder(monkeypatch)
+
+    core.capture(
+        "deploy key: AKIAIOSFODNN7EXAMPLE",
+        session=session,
+        redact=True,
+        classifier=classifier,
+    )
+
+    assert calls == ["scan", "classify", "add"]
+    assert classifier.seen is not None
+    assert "[REDACTED]" in classifier.seen
+    assert "AKIAIOSFODNN7EXAMPLE" not in classifier.seen
 
 
 def test_a_redacted_blocked_capture_persists_without_the_secret(
@@ -254,7 +331,7 @@ def test_the_mapping_layer_rejects_a_naive_datetime_with_a_plain_value_error() -
     object.__setattr__(request, "captured_at", datetime(2026, 7, 10))
 
     with pytest.raises(ValueError, match="naive datetime refused"):
-        to_item(request)
+        to_item(request, Classification(type=ItemType.note))
 
 
 def test_require_aware_normalizes_to_utc() -> None:
@@ -276,7 +353,7 @@ def test_to_item_never_carries_an_id_from_the_wire() -> None:
     """`id` is the database's to assign, never a caller's to assert."""
     request = CaptureRequest(raw="x", captured_at=datetime.now(UTC))
 
-    assert to_item(request).id is None
+    assert to_item(request, Classification(type=ItemType.note)).id is None
 
 
 def test_to_view_survives_its_session_closing(session: Session) -> None:

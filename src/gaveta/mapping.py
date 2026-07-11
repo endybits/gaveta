@@ -9,7 +9,8 @@ See docs/adr/ADR-002-persistence-and-time.md.
 
 from datetime import UTC, datetime
 
-from gaveta.db.models import Item, ItemType
+from gaveta.brain.types import Classification
+from gaveta.db.models import Item
 from gaveta.models import CaptureRequest, ItemView
 
 
@@ -35,23 +36,27 @@ def require_aware(moment: datetime) -> datetime:
     return moment.astimezone(UTC)
 
 
-def to_item(request: CaptureRequest) -> Item:
-    """A validated capture becomes an unsaved row.
+def to_item(request: CaptureRequest, classification: Classification) -> Item:
+    """A validated, classified capture becomes an unsaved row.
 
     `captured_at` becomes `created_at`: the same instant, under the name the database
     and Stage 7's HTTP responses use. `source` does not cross over — it is a constant
     (`"cli"`), and persisting a constant stores nothing.
 
-    `id` is absent by design. It is the database's to assign, and a row that could carry
-    one from the wire is a row a caller could overwrite.
+    The classification supplies `type`, `title`, `content`, and `tags`. It is the
+    authority on all four: `CaptureRequest.tags` is a wire field the CLI never fills, so
+    the classifier's proposed tags are what land. `id` is absent by design — it is the
+    database's to assign, and a row that could carry one from the wire is a row a caller
+    could overwrite.
     """
     created = require_aware(request.captured_at)
 
     return Item(
         raw=request.raw,
-        type=ItemType(request.type),
-        title=None,
-        tags=list(request.tags),
+        type=classification.type,
+        title=classification.title,
+        content=classification.content,
+        tags=list(classification.tags),
         created_at=created,
         updated_at=created,
     )

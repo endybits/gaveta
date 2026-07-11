@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from gaveta import gate
+from gaveta.brain import Classifier, make_classifier
 from gaveta.db.models import Item, ItemType
 from gaveta.gate import Verdict
 from gaveta.mapping import now_utc, to_item, to_view
@@ -32,21 +33,34 @@ class BlockedCapture(Exception):
         super().__init__("capture blocked: input contains a secret")
 
 
-def capture(raw: str, *, session: Session, redact: bool = False) -> ItemView:
+def capture(
+    raw: str,
+    *,
+    session: Session,
+    redact: bool = False,
+    classifier: Classifier | None = None,
+) -> ItemView:
     """Persist a capture and return it, with the id the database assigned.
 
-    The pipeline, in order. The order is the security property: `gate.scan` runs before
-    `to_item`, before `session.add`, before anything reaches disk — and, from Stage 4,
-    before any model sees the text.
+    The pipeline, in order: **scan → classify → persist**. The order is the security
+    property: `gate.scan` runs before the classifier, before `to_item`, before
+    `session.add`, before anything reaches disk. The classifier only ever sees the
+    *post-gate* text — cleared, or `[REDACTED]` — never the raw secret. That is asserted
+    by the pipeline-order test on the redact path.
 
     `redact` is checked *before* `blocked`: `--redact` is the sanctioned way to keep a
     detected secret safely, so the `[REDACTED]` text is persisted and the raw secret is
     not. The invariant is therefore *nothing blocked reaches disk unredacted*: a blocked
-    capture without redaction raises `BlockedCapture` and writes nothing. A `suspicious`
-    verdict is never fatal here: adjudicating it needs a prompt, which is the caller's
-    job, not the core's. See ADR-003.
+    capture without redaction raises `BlockedCapture` and writes nothing, before the
+    classifier runs. A `suspicious` verdict is never fatal here: adjudicating it needs a
+    prompt, which is the caller's job, not the core's. See ADR-003, ADR-004.
+
+    The classifier defaults to `make_classifier()` (Ollama with heuristic fallback). It
+    is injected so tests can drive the pipeline with a fake, and so it never blocks or
+    fails a capture — a classifier that cannot answer returns a heuristic guess.
     """
     request = CaptureRequest(raw=raw, captured_at=now_utc())
+    classifier = classifier or make_classifier()
 
     verdict = gate.scan(request.raw)
     if redact:
@@ -56,7 +70,8 @@ def capture(raw: str, *, session: Session, redact: bool = False) -> ItemView:
     else:
         text = request.raw
 
-    item = to_item(request.model_copy(update={"raw": text}))
+    classification = classifier.classify(text)
+    item = to_item(request.model_copy(update={"raw": text}), classification)
     session.add(item)
     session.commit()
     session.refresh(item)
