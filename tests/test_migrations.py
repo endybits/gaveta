@@ -91,6 +91,42 @@ def test_the_migrated_schema_matches_the_orm_models() -> None:
     assert diff == [], f"schema drift between migrations and models: {diff}"
 
 
+def test_content_column_is_added_and_existing_rows_survive() -> None:
+    """The content migration: added nullable, and a row from before it keeps living.
+
+    Upgrade only to the pre-content revision, insert a row the old schema knows nothing
+    about `content` for, then upgrade to head. The row must survive with `content` NULL,
+    the whole point of a nullable add, and the column must exist afterward.
+    """
+    config = alembic_config()
+    command.upgrade(config, "83e1b56e69e6")  # the schema before `content`
+
+    engine = create_engine(database_url())
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                sa.text(
+                    "INSERT INTO items (raw, type, tags_json, created_at, updated_at) "
+                    "VALUES ('old row', 'note', '[]', '2026-01-01', '2026-01-01')"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url())
+    try:
+        assert "content" in {c["name"] for c in inspect(engine).get_columns("items")}
+        with engine.connect() as connection:
+            row = connection.execute(sa.text("SELECT raw, content FROM items")).one()
+    finally:
+        engine.dispose()
+
+    assert row.raw == "old row"
+    assert row.content is None
+
+
 def test_the_type_check_constraint_survives_the_migration() -> None:
     """Stage 4 widens this constraint, and cannot if the migration did not name it."""
     command.upgrade(alembic_config(), "head")
