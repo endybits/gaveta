@@ -190,7 +190,7 @@ tokens → `command`; else `note`) and never blocks capture.
 - `gaveta.brain` module behind a `Classifier` protocol: `OllamaClassifier` +
   `HeuristicClassifier` fallback (Adapter pattern).
 - Model configurable (`~/.gaveta/config.toml`), default: a small instruct model
-  (evaluate Qwen 2.5 3B vs. Gemma small against 20 real samples — record in ADR-002).
+  (evaluate Qwen 2.5 3B vs. Gemma small against 20 real samples — record in ADR-004).
 - Strict JSON contract with the model; malformed output → fallback, never crash.
 - The classifier additionally extracts `content`: the clean, usable payload of the
   item — the bare command, the bare URL, the bare snippet — stripped of the
@@ -207,7 +207,7 @@ tokens → `command`; else `note`) and never blocks capture.
 - Fallback heuristics unit-tested; "Ollama down" path tested.
 - End-to-end: capture → classified item persisted with type ≠ unknown.
 
-**Docs.** README: requirements section (Ollama optional). ADR-002 model choice.
+**Docs.** README: requirements section (Ollama optional). ADR-004 model choice.
 
 **Definition of Done**
 - [ ] Works with and without Ollama installed
