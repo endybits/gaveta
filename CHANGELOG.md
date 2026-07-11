@@ -9,6 +9,13 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ## [Unreleased]
 
+### Changed
+
+- **`CaptureRequest.type` widened** from `unknown` to the wire vocabulary the classifier
+  emits: `link`, `command`, `note`, `unknown`. `credential_ref` stays storage-only (the
+  vault's, Stage 6). The `capture_request` JSON Schema snapshot changes accordingly — a
+  deliberate contract diff.
+
 ### Added
 
 - **The `content` column.** A nullable `content` column on `items`, added by an Alembic
