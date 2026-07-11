@@ -166,6 +166,7 @@ def _view(**overrides: Any) -> ItemView:
         "raw": "x",
         "type": ItemType.unknown,
         "title": None,
+        "content": None,
         "tags": [],
         "created_at": now,
         "updated_at": now,

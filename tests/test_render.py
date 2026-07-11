@@ -35,6 +35,7 @@ def _view(raw: str = "x", *, id: int = 1, **overrides: object) -> ItemView:
         "raw": raw,
         "type": ItemType.unknown,
         "title": None,
+        "content": None,
         "tags": [],
         "created_at": PRECISE_UTC,
         "updated_at": PRECISE_UTC,

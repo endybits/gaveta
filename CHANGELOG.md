@@ -15,6 +15,9 @@ Until `v1.0.0` the minor version tracks the stage number from
   emits: `link`, `command`, `note`, `unknown`. `credential_ref` stays storage-only (the
   vault's, Stage 6). The `capture_request` JSON Schema snapshot changes accordingly — a
   deliberate contract diff.
+- **`ItemView` gains `content`** (nullable). The output contract `show`, `export`, and
+  `--json` emit now carries the copyable payload. The `item_view` JSON Schema snapshot
+  changes accordingly — a deliberate contract diff.
 
 ### Added
 

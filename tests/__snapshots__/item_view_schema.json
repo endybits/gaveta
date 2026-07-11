@@ -13,6 +13,17 @@
     }
   },
   "properties": {
+    "content": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Content"
+    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
@@ -58,6 +69,7 @@
     "raw",
     "type",
     "title",
+    "content",
     "tags",
     "created_at",
     "updated_at"
