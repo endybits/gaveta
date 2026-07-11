@@ -52,7 +52,9 @@ ever reaches CI.
 
 Branches are `stage/N-short-name` (e.g. `stage/1-simulated-capture`) or `fix/short-name`.
 They are **rebase-merged** to `main` and tagged at stage close: `v0.0.1` for Stage 0,
-`v0.N.0` for Stages 1–10.
+`v0.N.0` for Stages 1–10 (so Stage 10, the first public release, ships as `v0.10.0`). `v1.0.0`
+is reserved for contract stability, not the first public release — see the *Versioning policy*
+in [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
 
 Rebase, not squash. This project treats its history as part of what it ships: a stage's
 commits show an ADR landing before the code it justifies, and a new dependency arriving as
