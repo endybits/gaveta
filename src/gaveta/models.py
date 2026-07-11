@@ -65,6 +65,10 @@ class ItemView(BaseModel):
     raw: str
     type: ItemType
     title: str | None
+    # The middle of the three layers (raw / content / title): the clean copyable
+    # payload, narrative stripped. Nullable, since plain prose has none. Stage 5's `-c`
+    # copies this when present, falling back to `raw`.
+    content: str | None
     tags: list[str]
     # UTC, with an explicit +00:00 offset on the wire. A consumer wanting local time
     # converts; a consumer reading a naive string would have to guess. See ADR-002.
