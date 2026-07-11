@@ -37,6 +37,11 @@ dependencies = [
   # scripts live inside the package (src/gaveta/db/migrations/) so the wheel ships
   # them and an installed Gaveta can create its own database. See ADR-002.
   "alembic>=1.13",
+  # Local classification (Stage 4): gaveta.brain POSTs to a local Ollama over HTTP.
+  # httpx is importable *only* under gaveta/brain, and only to reach localhost — the
+  # architecture test enforces both halves of that. Chosen over the ollama client for
+  # per-request timeout control and a clean mock seam. See ADR-004.
+  "httpx>=0.27",
 ]
 
 [project.urls]

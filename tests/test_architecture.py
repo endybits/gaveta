@@ -5,6 +5,7 @@ local" a property the codebase cannot lose by accident.
 """
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -110,24 +111,41 @@ def test_only_brain_may_import_httpx() -> None:
         )
 
 
+# A concrete endpoint literal: `scheme://` immediately followed by a real host — a
+# bracketed IPv6 literal, or a run of hostname characters (letters/digits/`.`/`-`). A
+# URL-*matching* regex (`…://[^\s…]+`) has `://` but is followed by a metacharacter, not
+# a host, so this deliberately does not flag it. What it flags is a hardcoded URL that
+# would actually dial out.
+_CONCRETE_URL_RE = re.compile(
+    r"[a-zA-Z][a-zA-Z0-9+.\-]*://(?:\[[0-9a-fA-F:]+\]|[\w.\-]+)"
+)
+
+
+def _hosts_in(text: str) -> list[str]:
+    """Every concrete host named by a `scheme://host` literal in `text`."""
+    return [
+        match.group(0).split("://", 1)[1].strip("[]")
+        for match in _CONCRETE_URL_RE.finditer(text)
+    ]
+
+
 def test_brain_names_no_non_localhost_url() -> None:
     """Import scope is necessary but not sufficient — the AST sees `import httpx`, not
     the URL it dials. So the one module holding an HTTP client may name only a local
-    host: any `http(s)://…` literal in `brain` must point at localhost. A non-local
-    default URL anywhere in `brain` fails the build (ADR-004, layer-4 containment)."""
+    host: any concrete `scheme://host` literal in `brain` must point at localhost. A
+    non-local default URL anywhere in `brain` fails the build (ADR-004, layer-4
+    containment). A URL-matching *regex* names no host and is not flagged."""
     brain_files = [p for p in _python_files() if _is_brain(p)]
     for path in brain_files:
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
                 continue
-            text = node.value
-            if "://" not in text:
-                continue
-            assert any(host in text for host in _LOCAL_HOSTS), (
-                f"{path.relative_to(SRC)} names a non-localhost URL {text!r}; "
-                "brain may only ever dial the local machine (ADR-004)"
-            )
+            for host in _hosts_in(node.value):
+                assert host in _LOCAL_HOSTS, (
+                    f"{path.relative_to(SRC)} names a non-localhost URL host {host!r}; "
+                    "brain may only ever dial the local machine (ADR-004)"
+                )
 
 
 def test_no_get_secret_symbol_exists_yet() -> None:

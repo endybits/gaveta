@@ -11,6 +11,13 @@ Until `v1.0.0` the minor version tracks the stage number from
 
 ### Added
 
+- **Local classification (`gaveta.brain`).** A `Classifier` protocol with two
+  implementations behind an Adapter: `OllamaClassifier` asks a local model for a strict
+  JSON `{type, title, tags, content}`, and `HeuristicClassifier` is the deterministic
+  floor it degrades to. Any failure — Ollama absent, connection refused, timeout, non-200,
+  malformed or off-contract JSON — falls back to heuristics, so a capture is never lost.
+  `httpx` reaches Ollama, importable only under `gaveta/brain` and only to localhost
+  (ADR-004).
 - **`~/.gaveta/config.toml`.** An optional config file (GAVETA_HOME-aware) with a `[model]`
   block: `name`, `endpoint`, `timeout`. Absent means defaults (`qwen2.5:3b-instruct` on
   `http://localhost:11434`, a 2.5s budget). A malformed file, or an endpoint that is not
