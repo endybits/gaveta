@@ -8,15 +8,41 @@ migration running against a drawer the user did not name.
 See docs/adr/ADR-002-persistence-and-time.md.
 """
 
+from collections.abc import MutableMapping
 from logging.config import fileConfig
+from typing import Literal
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from gaveta.db.config import database_url
+from gaveta.db.config import database_url, is_search_shadow
 from gaveta.db.models import Base
 
 config = context.config
+
+# Alembic's own parameter types for the `include_name` hook. Spelled out so the
+# signature matches what `context.configure` expects under mypy --strict.
+_NameType = Literal[
+    "schema", "table", "column", "index", "unique_constraint", "foreign_key_constraint"
+]
+_ParentNames = MutableMapping[
+    Literal["schema_name", "table_name", "schema_qualified_table_name"], str | None
+]
+
+
+def _include_name(
+    name: str | None,
+    type_: _NameType,
+    parent_names: _ParentNames,
+) -> bool:
+    """Keep the FTS5/vec0 virtual tables and their shadow tables out of autogenerate.
+
+    They are not in `Base.metadata` — `items_fts` is raw-SQL DDL and `vec_items` is a
+    machine-dependent cache created outside the chain — so a comparison would forever
+    report them as tables to drop. See docs/adr/ADR-005-semantic-retrieval.md.
+    """
+    return not (type_ == "table" and name is not None and is_search_shadow(name))
+
 
 # Only when invoked through the root alembic.ini — a developer running
 # `alembic revision --autogenerate`. Under `command.upgrade()` from the CLI there is no
@@ -44,6 +70,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_as_batch=_BATCH,
+        include_name=_include_name,
     )
 
     with context.begin_transaction():
@@ -64,6 +91,7 @@ def run_migrations_online() -> None:
                 connection=connection,
                 target_metadata=target_metadata,
                 render_as_batch=_BATCH,
+                include_name=_include_name,
             )
 
             with context.begin_transaction():

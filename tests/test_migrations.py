@@ -14,9 +14,48 @@ from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
 
-from gaveta.db.config import MIGRATIONS_DIR, alembic_config, database_url
+from gaveta.db.config import (
+    MIGRATIONS_DIR,
+    alembic_config,
+    database_url,
+    is_search_shadow,
+)
 from gaveta.db.models import Base
 from gaveta.paths import db_path
+
+# The revision just before the FTS5 index landed, for the "existing rows" backfill test.
+_PRE_FTS_REVISION = "e0e5bf21467f"
+
+
+def _insert_item(
+    connection: sa.Connection,
+    *,
+    raw: str,
+    title: str | None = None,
+    content: str | None = None,
+    tags: str = "[]",
+) -> None:
+    """Insert one row with a plain SQL statement, bypassing the ORM.
+
+    The migration tests deliberately avoid `Base.metadata` and the ORM: they prove what
+    the *migration chain* builds, not what the models describe.
+    """
+    connection.execute(
+        sa.text(
+            "INSERT INTO items (raw, type, title, content, tags_json, "
+            "created_at, updated_at) VALUES (:raw, 'note', :title, :content, :tags, "
+            "'2026-01-01', '2026-01-01')"
+        ),
+        {"raw": raw, "title": title, "content": content, "tags": tags},
+    )
+
+
+def _fts_match(connection: sa.Connection, query: str) -> set[int]:
+    """The set of `items.id` whose FTS row matches `query`."""
+    rows = connection.execute(
+        sa.text("SELECT rowid FROM items_fts WHERE items_fts MATCH :q"), {"q": query}
+    ).fetchall()
+    return {row[0] for row in rows}
 
 
 def _tables(url: str) -> set[str]:
@@ -83,7 +122,21 @@ def test_the_migrated_schema_matches_the_orm_models() -> None:
     engine = create_engine(database_url())
     try:
         with engine.connect() as connection:
-            context = MigrationContext.configure(connection)
+            # This standalone context does NOT inherit env.py's `include_name` filter,
+            # so the FTS5/vec0 virtual tables (absent from Base.metadata) must be
+            # excluded here too — via the same shared predicate — or they read as drift.
+            context = MigrationContext.configure(
+                connection,
+                opts={
+                    "include_name": lambda name, type_, parent: (
+                        not (
+                            type_ == "table"
+                            and name is not None
+                            and is_search_shadow(name)
+                        )
+                    )
+                },
+            )
             diff = compare_metadata(context, Base.metadata)
     finally:
         engine.dispose()
@@ -185,3 +238,81 @@ def test_the_database_url_follows_gaveta_home(
     monkeypatch.setenv("GAVETA_HOME", str(tmp_path / "two"))
 
     assert database_url() != first
+
+
+# --- FTS5 keyword index ------------------------------------------------------
+
+
+def test_the_fts5_migration_backfills_rows_that_already_existed() -> None:
+    """The day-one bug this backfill exists to prevent.
+
+    Triggers index *future* writes only. A drawer captured before Stage 5 must still be
+    findable by the first `gaveta f` after upgrade — without needing a `reindex`, which
+    heals embeddings, not the keyword index. Insert rows under the pre-FTS schema,
+    upgrade to head, and the pre-existing rows must be in `items_fts`.
+    """
+    config = alembic_config()
+    command.upgrade(config, _PRE_FTS_REVISION)
+
+    engine = create_engine(database_url())
+    try:
+        with engine.begin() as connection:
+            _insert_item(connection, raw="ssh tunnel to the qa database", title="qa")
+            _insert_item(connection, raw="notes on the friday deploy", title="deploy")
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url())
+    try:
+        with engine.connect() as connection:
+            assert _fts_match(connection, "tunnel") == {1}
+            assert _fts_match(connection, "deploy") == {2}
+    finally:
+        engine.dispose()
+
+
+def test_the_fts5_triggers_keep_the_index_in_sync_on_write() -> None:
+    """Insert, update, delete on `items` must flow into `items_fts` via the triggers.
+
+    `core.py` does plain ORM writes; the schema's triggers are what keep the keyword
+    index consistent. This asserts all three arms, including that an update *purges* the
+    old tokens (the failure mode of a naive sync).
+    """
+    command.upgrade(alembic_config(), "head")
+
+    engine = create_engine(database_url())
+    try:
+        with engine.begin() as connection:
+            _insert_item(connection, raw="tunnel to rds", content="ssh -L rds")
+            assert _fts_match(connection, "tunnel") == {1}
+
+            # Update: the old token ("tunnel") must vanish, the new one ("psql") appear.
+            connection.execute(
+                sa.text(
+                    "UPDATE items SET raw = 'psql prompt', content = 'psql' "
+                    "WHERE id = 1"
+                )
+            )
+            assert _fts_match(connection, "tunnel") == set()
+            assert _fts_match(connection, "psql") == {1}
+
+            # Delete: the row leaves the index.
+            connection.execute(sa.text("DELETE FROM items WHERE id = 1"))
+            assert _fts_match(connection, "psql") == set()
+    finally:
+        engine.dispose()
+
+
+def test_the_fts5_index_is_removed_on_downgrade() -> None:
+    """The downgrade drops the virtual table and its triggers, leaving base schema."""
+    config = alembic_config()
+    command.upgrade(config, "head")
+    assert "items_fts" in _tables(database_url())
+
+    command.downgrade(config, _PRE_FTS_REVISION)
+
+    tables = _tables(database_url())
+    assert "items_fts" not in tables
+    assert "items" in tables

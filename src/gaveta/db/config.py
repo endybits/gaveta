@@ -21,6 +21,26 @@ from gaveta.paths import db_path, ensure_home
 # checkout, a virtualenv's site-packages, or a pipx-managed venv. It is never CWD.
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
+# The virtual tables Stage 5 adds, and the shadow tables SQLite creates behind them.
+# `items_fts` is a real FTS5 table created by a migration; `items_fts_data`,
+# `items_fts_idx`, `items_fts_docsize`, `items_fts_config` are its SQLite-managed
+# internals. `vec_items` is the sqlite-vec index, created lazily outside the migration
+# chain (it exists only where the extension loads), with its own shadow tables. None of
+# these are described by `Base.metadata`, so the model/migration drift check must skip
+# them — a prefix match, because the shadow-table names vary across SQLite versions and
+# cannot be enumerated by hand. See docs/adr/ADR-005-semantic-retrieval.md.
+_SEARCH_TABLE_PREFIXES = ("items_fts", "vec_items")
+
+
+def is_search_shadow(name: str) -> bool:
+    """True for the FTS5/vec0 virtual tables and their SQLite-managed shadow tables.
+
+    The one predicate shared by `env.py` (which excludes them from autogenerate) and the
+    drift test (whose standalone `MigrationContext` does not inherit env.py's filter). A
+    single source of truth so the two cannot diverge.
+    """
+    return name.startswith(_SEARCH_TABLE_PREFIXES)
+
 
 def database_url() -> str:
     """The SQLite URL for the current `GAVETA_HOME`. Resolved per call, never cached.
