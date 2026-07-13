@@ -192,7 +192,7 @@ def test_reserved_word_alone_exits_two(
 def test_reserved_word_with_trailing_tokens_exits_two(
     tty_stdin: _FakeStdin, capsys: pytest.CaptureFixture[str], name: str
 ) -> None:
-    """The rule tests tokens[0], not the sole token: `gaveta f my query` is reserved."""
+    """The rule tests tokens[0], not the sole token: `gaveta cred x y` is reserved."""
     assert main([name, "extra", "tokens"]) == 2
     assert f"'{name}' is a reserved command" in capsys.readouterr().err
 
@@ -201,13 +201,13 @@ def test_reserved_word_with_trailing_tokens_exits_two(
 def test_implemented_word_is_not_treated_as_reserved(
     tty_stdin: _FakeStdin, capsys: pytest.CaptureFixture[str], name: str
 ) -> None:
-    """ls/show/retag/rm/export dispatch now; none may print the reserved-word message.
+    """f/reindex/ls/show/retag/rm/export dispatch now; none prints reserved-word text.
 
-    `show`/`retag`/`rm` without an id raise argparse's own SystemExit, so this asserts
-    the *reserved* path is gone rather than any particular exit code.
+    `f`/`show`/`retag`/`rm` without their argument raise argparse's own SystemExit, so
+    this asserts the *reserved* path is gone rather than any particular exit code.
     """
-    # show/rm without an id raise argparse's own SystemExit; that is still not the
-    # reserved path, which is what this test is about.
+    # f/show/rm without their argument raise argparse's own SystemExit; that is still
+    # not the reserved path, which is what this test is about.
     with contextlib.suppress(SystemExit):
         main([name])
 

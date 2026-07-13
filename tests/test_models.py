@@ -17,11 +17,12 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from gaveta.db.models import ItemType
-from gaveta.models import CaptureRequest, ItemView
+from gaveta.models import CaptureRequest, ItemView, SearchHit
 
 SNAPSHOT_DIR = Path(__file__).parent / "__snapshots__"
 CAPTURE_REQUEST_SNAPSHOT = SNAPSHOT_DIR / "capture_request_schema.json"
 ITEM_VIEW_SNAPSHOT = SNAPSHOT_DIR / "item_view_schema.json"
+SEARCH_HIT_SNAPSHOT = SNAPSHOT_DIR / "search_hit_schema.json"
 
 
 def _strip_descriptions(node: Any) -> Any:
@@ -54,8 +55,9 @@ def _schema(model: type[BaseModel]) -> dict[str, Any]:
     [
         (CaptureRequest, CAPTURE_REQUEST_SNAPSHOT),
         (ItemView, ITEM_VIEW_SNAPSHOT),
+        (SearchHit, SEARCH_HIT_SNAPSHOT),
     ],
-    ids=["CaptureRequest", "ItemView"],
+    ids=["CaptureRequest", "ItemView", "SearchHit"],
 )
 def test_schema_matches_snapshot(model: type[BaseModel], snapshot: Path) -> None:
     """The machine contract is frozen. Update a snapshot deliberately, in a PR."""
@@ -69,8 +71,8 @@ def test_schema_matches_snapshot(model: type[BaseModel], snapshot: Path) -> None
 
 @pytest.mark.parametrize(
     "snapshot",
-    [CAPTURE_REQUEST_SNAPSHOT, ITEM_VIEW_SNAPSHOT],
-    ids=["CaptureRequest", "ItemView"],
+    [CAPTURE_REQUEST_SNAPSHOT, ITEM_VIEW_SNAPSHOT, SEARCH_HIT_SNAPSHOT],
+    ids=["CaptureRequest", "ItemView", "SearchHit"],
 )
 def test_snapshot_is_canonically_formatted(snapshot: Path) -> None:
     """Guard the snapshot's own formatting, so diffs stay reviewable."""
@@ -82,7 +84,7 @@ def test_snapshot_is_canonically_formatted(snapshot: Path) -> None:
 
 def test_no_docstring_survives_into_a_snapshot() -> None:
     """The stripper is recursive. A nested `description` would defeat the point."""
-    for snapshot in (CAPTURE_REQUEST_SNAPSHOT, ITEM_VIEW_SNAPSHOT):
+    for snapshot in (CAPTURE_REQUEST_SNAPSHOT, ITEM_VIEW_SNAPSHOT, SEARCH_HIT_SNAPSHOT):
         assert "description" not in snapshot.read_text()
 
 
@@ -203,3 +205,26 @@ def test_item_view_json_roundtrips() -> None:
     restored = ItemView.model_validate_json(original.model_dump_json())
 
     assert restored == original
+
+
+# --- SearchHit: the `f` output contract, new in Stage 5 ----------------------
+
+
+@pytest.mark.parametrize("value", ["keyword", "semantic", "both"])
+def test_search_hit_accepts_the_matched_on_vocabulary(value: str) -> None:
+    hit = SearchHit(id=1, type=ItemType.command, title="t", matched_on=value)  # type: ignore[arg-type]
+    assert hit.matched_on == value
+
+
+def test_search_hit_rejects_an_unknown_matched_on() -> None:
+    """A raw score never crosses the wire; only the three deterministic labels do."""
+    with pytest.raises(ValidationError):
+        SearchHit(id=1, type=ItemType.note, title=None, matched_on="fuzzy")  # type: ignore[arg-type]
+
+
+def test_search_hit_carries_only_the_result_list_fields() -> None:
+    """Smaller than ItemView on purpose — a search lists candidates, does not dump."""
+    fields = set(SearchHit.model_fields)
+
+    assert fields == {"id", "type", "title", "matched_on"}
+    assert "raw" not in fields  # the payload is fetched by `show`/`-c`, not listed here

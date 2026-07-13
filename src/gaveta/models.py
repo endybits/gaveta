@@ -1,13 +1,14 @@
 """The wire models — the contracts every later stage honors.
 
-Two of them, and the split is deliberate (ADR-002). `CaptureRequest` is what goes *in*;
-`ItemView` is what comes *out* once a capture has been persisted and given an id. The
-row that sits between them is `gaveta.db.models.Item`, and `gaveta.mapping` is the only
-place that converts.
+Two of them, and the split is deliberate (ADR-002). `CaptureRequest` is what goes
+*in*; `ItemView` is what comes *out* once a capture has been persisted and given an
+id. The row that sits between them is `gaveta.db.models.Item`, and `gaveta.mapping` is
+the only place that converts.
 
-Both schemas are snapshot-tested, so a change to either shows up as an explicit diff in
-review rather than as a surprise in a client. Keeping storage out of `CaptureRequest` is
-what let Stage 2 add an output contract without touching the input one.
+Both schemas are snapshot-tested, so a change to either shows up as an explicit diff
+in review rather than as a surprise in a client. Keeping storage out of
+`CaptureRequest` is what let Stage 2 add an output contract without touching the input
+one.
 """
 
 from datetime import datetime
@@ -25,9 +26,9 @@ from gaveta.db.models import ItemType
 # Literal makes any other value a type error rather than a convention to remember.
 CaptureType = Literal["link", "command", "note", "unknown"]
 
-# The interface is the CLI, whether the text arrived as an argument or over a
-# pipe. `stdin` is a transport, not a source, so it is deliberately not a value
-# here: inventing one would add contract the spec does not ask for.
+# The interface is the CLI, whether the text arrived as an argument or over a pipe.
+# `stdin` is a transport, not a source, so it is deliberately not a value here:
+# inventing one would add contract the spec does not ask for.
 CaptureSource = Literal["cli"]
 
 
@@ -50,13 +51,13 @@ class ItemView(BaseModel):
     """A capture that has been saved: the output contract.
 
     What `show`, `export`, and `--json` emit, and what Stage 7's HTTP routes return.
-    It is a plain pydantic model rather than a live `Item`, so serializing it after its
-    session has closed cannot raise `DetachedInstanceError`.
+    It is a plain pydantic model rather than a live `Item`, so serializing it after
+    its session has closed cannot raise `DetachedInstanceError`.
 
     `type` is the *storage* vocabulary (`ItemType`, all five members), not the wire
-    vocabulary `CaptureType` — this model describes a row, and a row's type is whatever
-    the database may hold. Importing the enum rather than restating its members is what
-    stops the two from drifting apart in silence.
+    vocabulary `CaptureType` — this model describes a row, and a row's type is
+    whatever the database may hold. Importing the enum rather than restating its
+    members is what stops the two from drifting apart in silence.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -66,11 +67,33 @@ class ItemView(BaseModel):
     type: ItemType
     title: str | None
     # The middle of the three layers (raw / content / title): the clean copyable
-    # payload, narrative stripped. Nullable, since plain prose has none. Stage 5's `-c`
-    # copies this when present, falling back to `raw`.
+    # payload, narrative stripped. Nullable, since plain prose has none. Stage 5's
+    # `-c` copies this when present, falling back to `raw`.
     content: str | None
     tags: list[str]
     # UTC, with an explicit +00:00 offset on the wire. A consumer wanting local time
     # converts; a consumer reading a naive string would have to guess. See ADR-002.
     created_at: datetime
     updated_at: datetime
+
+
+# How a search hit was found. A deterministic label, not a relevance score: a raw
+# score would differ between the FTS5-only path (this machine) and the fused path (a
+# vec-capable one), so it would make the `f --json` contract machine-dependent. `both`
+# and `semantic` only appear where the vector index is available. See ADR-005.
+MatchedOn = Literal["keyword", "semantic", "both"]
+
+
+class SearchHit(BaseModel):
+    """One result of `gaveta f`: enough to identify and choose a hit.
+
+    A separate, smaller contract than `ItemView` — a search lists candidates, it does
+    not dump every field. `matched_on` says *how* the hit surfaced (keyword, semantic,
+    or both), which is stable across machines, unlike a fusion score. This is a new
+    wire contract, snapshot-tested like the others; it does not touch `ItemView`.
+    """
+
+    id: int
+    type: ItemType
+    title: str | None
+    matched_on: MatchedOn

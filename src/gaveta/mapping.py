@@ -1,8 +1,8 @@
 """The seam between the wire contracts and the stored row.
 
 Three models, two conversions, one file. Keeping them here rather than inside the
-commands is what makes the boundary reviewable: when Stage 3 attaches a gate verdict and
-Stage 4 attaches a classification, this is the diff.
+commands is what makes the boundary reviewable: when Stage 3 attaches a gate verdict
+and Stage 4 attaches a classification, this is the diff.
 
 See docs/adr/ADR-002-persistence-and-time.md.
 """
@@ -11,7 +11,8 @@ from datetime import UTC, datetime
 
 from gaveta.brain.types import Classification
 from gaveta.db.models import Item
-from gaveta.models import CaptureRequest, ItemView
+from gaveta.models import CaptureRequest, ItemView, SearchHit
+from gaveta.search import SearchResult
 
 
 def now_utc() -> datetime:
@@ -22,10 +23,11 @@ def now_utc() -> datetime:
 def require_aware(moment: datetime) -> datetime:
     """Reject a naive datetime here, where a caller can catch a plain `ValueError`.
 
-    `UtcDateTime` enforces the same rule at the column, but SQLAlchemy wraps whatever a
-    bind processor raises in `StatementError`. That is a fine backstop and a poor front
-    door: it surfaces at `commit()`, far from the caller, wearing the wrong type. So the
-    invariant is checked twice, and this is the check that talks to people.
+    `UtcDateTime` enforces the same rule at the column, but SQLAlchemy wraps whatever
+    a bind processor raises in `StatementError`. That is a fine backstop and a poor
+    front door: it surfaces at `commit()`, far from the caller, wearing the wrong
+    type. So the invariant is checked twice, and this is the check that talks to
+    people.
     """
     if moment.tzinfo is None:
         raise ValueError(
@@ -44,10 +46,10 @@ def to_item(request: CaptureRequest, classification: Classification) -> Item:
     (`"cli"`), and persisting a constant stores nothing.
 
     The classification supplies `type`, `title`, `content`, and `tags`. It is the
-    authority on all four: `CaptureRequest.tags` is a wire field the CLI never fills, so
-    the classifier's proposed tags are what land. `id` is absent by design — it is the
-    database's to assign, and a row that could carry one from the wire is a row a caller
-    could overwrite.
+    authority on all four: `CaptureRequest.tags` is a wire field the CLI never fills,
+    so the classifier's proposed tags are what land. `id` is absent by design — it is
+    the database's to assign, and a row that could carry one from the wire is a row a
+    caller could overwrite.
     """
     created = require_aware(request.captured_at)
 
@@ -66,6 +68,23 @@ def to_view(item: Item) -> ItemView:
     """A saved row becomes the output contract.
 
     Called while the row's session is still open. `ItemView` holds no session, so the
-    result outlives it — which is what Stage 7 needs and what a bare `Item` cannot give.
+    result outlives it — which is what Stage 7 needs and what a bare `Item` cannot
+    give.
     """
     return ItemView.model_validate(item)
+
+
+def to_search_hit(result: SearchResult) -> SearchHit:
+    """A core search result becomes the `f` wire contract.
+
+    `SearchResult` pairs a full `ItemView` with how it matched; `SearchHit` keeps only
+    the identifying fields a result list needs. `matched_on` crosses over by its
+    string value — the same three labels the `MatchedOn` literal names, so the wire
+    stays machine- independent (no fusion score).
+    """
+    return SearchHit(
+        id=result.item.id,
+        type=result.item.type,
+        title=result.item.title,
+        matched_on=result.matched_on.value,
+    )

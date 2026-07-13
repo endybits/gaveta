@@ -4,8 +4,8 @@ Pure functions over an `ItemView`, so both are unit-testable without touching ar
 stdout. `rich` is used here and nowhere else — it formats output and has no say in
 argument parsing (ADR-001).
 
-Timestamps render in the reader's local timezone. They are *stored* in UTC and cross the
-`--json` boundary in UTC (ADR-002); converting for display is the last thing that
+Timestamps render in the reader's local timezone. They are *stored* in UTC and cross
+the `--json` boundary in UTC (ADR-002); converting for display is the last thing that
 happens, and only for a human.
 """
 
@@ -16,7 +16,7 @@ from io import StringIO
 from rich.console import Console
 
 from gaveta.gate import Verdict
-from gaveta.models import ItemView
+from gaveta.models import ItemView, SearchHit
 
 # The detail view's labels, in display order. `created_at` is shown as `created`: the
 # display label differs from the field name on purpose — the field name is the machine
@@ -43,8 +43,8 @@ def _console(buffer: StringIO) -> Console:
     """A console that never rewrites the text it is given.
 
     `markup=False` and `highlight=False` are load-bearing, not cosmetic: `raw` is
-    arbitrary user text. With markup on, a captured `[bold]x[/bold]` would print as `x`
-    and lose its brackets — corruption, in a tool whose job is faithful capture.
+    arbitrary user text. With markup on, a captured `[bold]x[/bold]` would print as
+    `x` and lose its brackets — corruption, in a tool whose job is faithful capture.
     """
     return Console(
         file=buffer,
@@ -82,10 +82,10 @@ def render_json_list(items: list[ItemView]) -> str:
 def render_saved(item: ItemView, *, verb: str = "saved", redacted: bool = False) -> str:
     """The confirmation line, one honest verb per operation.
 
-    Capture prints `saved`; `retag` reuses this with `verb="retagged"`, because it saved
-    nothing new — claiming "saved" for a reclassification is the same soft lie the
-    `rm`-of-an-absent-id message avoids. The line finally earns its keep now that there
-    is real classification to report:
+    Capture prints `saved`; `retag` reuses this with `verb="retagged"`, because it
+    saved nothing new — claiming "saved" for a reclassification is the same soft lie
+    the `rm`-of-an-absent-id message avoids. The line finally earns its keep now that
+    there is real classification to report:
 
         ✓ saved · id 7 · command · ssh, rds, qa
 
@@ -111,8 +111,8 @@ def render_blocked(verdict: Verdict) -> str:
     """The ✋ refusal. Names what was detected, states the rule, points to the vault.
 
     The vault flow (`gaveta cred --new`) lands for real in Stage 6; today the message
-    names it as the upcoming path, and offers `--redact` as the escape hatch that works
-    now. `verdict.findings` carries the human label the block reads back.
+    names it as the upcoming path, and offers `--redact` as the escape hatch that
+    works now. `verdict.findings` carries the human label the block reads back.
     """
     labels = _unique_labels(verdict)
     detected = labels[0] if labels else "a secret"
@@ -133,8 +133,8 @@ def render_removed(item_id: int, existed: bool) -> str:
     """`rm` is idempotent, and says which of the two things just happened.
 
     Both are successes: the postcondition (no item with this id) holds either way. But
-    reporting a removal that removed nothing claims work that did not happen; a mistyped
-    id deserves to show that nothing was deleted.
+    reporting a removal that removed nothing claims work that did not happen; a
+    mistyped id deserves to show that nothing was deleted.
     """
     if existed:
         return f"✓ removed · id {item_id}"
@@ -164,8 +164,8 @@ def render_item(item: ItemView) -> str:
 def render_list(items: list[ItemView]) -> str:
     """The listing: one row per capture, newest first. Empty prints nothing at all.
 
-    Silence on an empty drawer is deliberate. `gaveta ls | wc -l` should say zero, and a
-    friendly "no items yet" would say one.
+    Silence on an empty drawer is deliberate. `gaveta ls | wc -l` should say zero, and
+    a friendly "no items yet" would say one.
     """
     buffer = StringIO()
     console = _console(buffer)
@@ -178,3 +178,37 @@ def render_list(items: list[ItemView]) -> str:
         console.print(f"  {item.id:>4}  {item.type.value:<14}  {label}{tags}")
 
     return buffer.getvalue()
+
+
+def render_search(hits: list[SearchHit]) -> str:
+    """`gaveta f`'s hit list: id, type, title, one row each, best first.
+
+    Mirrors `render_list`'s columns so the two read alike, but shows the `title` (the
+    readable label the classifier gave) rather than a truncated raw. Empty prints
+    nothing on stdout — the "no matches" notice goes to stderr, so `f | …` stays clean
+    and a found-nothing search still exits 0.
+    """
+    buffer = StringIO()
+    console = _console(buffer)
+
+    for hit in hits:
+        label = _shorten(hit.title or "", _LIST_RAW_WIDTH) or "—"
+        console.print(f"  {hit.id:>4}  {hit.type.value:<14}  {label}")
+
+    return buffer.getvalue()
+
+
+def render_search_json(hits: list[SearchHit]) -> str:
+    """The machine view of a search: a JSON array of hits, indented. `[]` when empty."""
+    return json.dumps([json.loads(hit.model_dump_json()) for hit in hits], indent=2)
+
+
+def render_reindexed(embedded: int, total: int) -> str:
+    """`reindex`'s confirmation: how many of the drawer's items were embedded this run.
+
+        ✓ reindexed · embedded 3 of 28
+
+    On a rerun with nothing new, `embedded 0 of 28` — honest that it did nothing,
+    which is the idempotence guarantee showing through.
+    """
+    return f"✓ reindexed · embedded {embedded} of {total}"
