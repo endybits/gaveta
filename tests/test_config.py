@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from gaveta.config import (
+    DEFAULT_EMBEDDING_MODEL,
     DEFAULT_ENDPOINT,
     DEFAULT_MODEL,
     DEFAULT_TIMEOUT,
@@ -34,6 +35,21 @@ def test_missing_file_yields_defaults(gaveta_home: Path) -> None:
     assert cfg.name == DEFAULT_MODEL
     assert cfg.endpoint == DEFAULT_ENDPOINT
     assert cfg.timeout == DEFAULT_TIMEOUT
+    assert cfg.embedding_model == DEFAULT_EMBEDDING_MODEL
+
+
+def test_embedding_model_overrides_the_default(gaveta_home: Path) -> None:
+    _write_config(gaveta_home, '[model]\nembedding_model = "mxbai-embed-large"\n')
+    cfg = load_config()
+    assert cfg.embedding_model == "mxbai-embed-large"
+    # The classifier model is untouched — one block, two independent knobs.
+    assert cfg.name == DEFAULT_MODEL
+
+
+def test_empty_embedding_model_is_a_config_error(gaveta_home: Path) -> None:
+    _write_config(gaveta_home, '[model]\nembedding_model = ""\n')
+    with pytest.raises(ConfigError):
+        load_config()
 
 
 def test_present_file_overrides_defaults(gaveta_home: Path) -> None:

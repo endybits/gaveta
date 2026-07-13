@@ -11,17 +11,21 @@ after the gate, so it only ever sees cleared or `[REDACTED]` text.
 never has to know whether a model was reachable.
 """
 
+from gaveta.brain.embed import OllamaEmbedder
 from gaveta.brain.heuristic import HeuristicClassifier
 from gaveta.brain.ollama import OllamaClassifier
-from gaveta.brain.types import Classification, Classifier
+from gaveta.brain.types import Classification, Classifier, Embedder
 from gaveta.config import ModelConfig, load_config
 
 __all__ = [
     "Classification",
     "Classifier",
+    "Embedder",
     "HeuristicClassifier",
     "OllamaClassifier",
+    "OllamaEmbedder",
     "make_classifier",
+    "make_embedder",
 ]
 
 
@@ -33,3 +37,13 @@ def make_classifier(config: ModelConfig | None = None) -> Classifier:
     contract the whole degrade-never-block design rests on.
     """
     return OllamaClassifier(config or load_config())
+
+
+def make_embedder(config: ModelConfig | None = None) -> Embedder:
+    """The default embedder: Ollama, returning `None` when no model is reachable.
+
+    The seam the core and tests construct, mirroring `make_classifier`. Unlike the
+    classifier there is no heuristic fallback — a missing embedding is a gap `reindex`
+    heals later, not a wrong guess to substitute.
+    """
+    return OllamaEmbedder(config or load_config())

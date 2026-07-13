@@ -64,3 +64,32 @@ def no_real_model(monkeypatch: pytest.MonkeyPatch) -> None:
     # Ollama on the developer's machine — nondeterministic, and against the rule.
     for module in ("gaveta.core", "gaveta.cli", "gaveta.subcommands"):
         monkeypatch.setattr(f"{module}.make_classifier", lambda *a, **k: heuristic)
+
+
+class _NoEmbedder:
+    """The default embedder in tests: no model reachable, exactly the CI reality.
+
+    Returns `None` for every text, as a real `OllamaEmbedder` does with no Ollama up. A
+    test that wants deterministic vectors injects its own fake `Embedder` instead. This
+    keeps the whole suite off the network by default, mirroring `no_real_model`.
+    """
+
+    def embed(self, text: str) -> list[float] | None:
+        return None
+
+
+@pytest.fixture(autouse=True)
+def no_real_embedder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test talks to a real Ollama embedding model — sibling of the classifier rule
+    (CLAUDE.md, ADR-005).
+
+    `make_embedder()` is redirected to a `_NoEmbedder` returning `None`, so `reindex` in
+    any test that does not inject a fake embedder simply finds no model — the degraded
+    path, which is also CI's real path. Patch every module that reaches for the factory,
+    for the same reason `no_real_model` does.
+    """
+    embedder = _NoEmbedder()
+    for module in ("gaveta.core", "gaveta.subcommands"):
+        monkeypatch.setattr(
+            f"{module}.make_embedder", lambda *a, **k: embedder, raising=False
+        )
