@@ -148,7 +148,11 @@ So containment matters as much as detection:
 
 - **Everything is local.** The drawer is a SQLite file at `~/.gaveta/gaveta.db` (overridable
   via `GAVETA_HOME`). Nothing is sent to any external API — a fact enforced by a test that
-  fails the build if any module imports a network library.
+  fails the build if any module imports a network library. Stage 5's embeddings extend this
+  without weakening it: the embedding model is a *local* Ollama (the same `brain/`-only,
+  localhost-only fence as classification), the vectors live in the local SQLite file, and the
+  `-c` clipboard copy shells out to the local clipboard — it opens no network path, and its
+  one dependency imports no network library.
 - **No secret-reading API exists.** From Stage 6, credentials live in your real vault
   (Bitwarden, KeePassXC) and Gaveta stores only *references*. Resolving one sends the secret
   straight from the vault to your clipboard; it never crosses Gaveta's return values, stdout,
