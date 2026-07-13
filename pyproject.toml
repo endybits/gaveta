@@ -42,6 +42,12 @@ dependencies = [
   # architecture test enforces both halves of that. Chosen over the ollama client for
   # per-request timeout control and a clean mock seam. See ADR-004.
   "httpx>=0.27",
+  # Semantic retrieval (Stage 5): the sqlite-vec vector index. Ships prebuilt wheels
+  # with the loadable extension binary. It imports no network library, so the fence
+  # holds. It installs everywhere, but *loads* only where the Python sqlite3 was built
+  # with extension loading enabled — where it cannot, retrieval degrades to FTS5-only
+  # and this is dormant. See docs/adr/ADR-005-semantic-retrieval.md.
+  "sqlite-vec>=0.1",
 ]
 
 [project.urls]
@@ -91,6 +97,13 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 strict = true
 files = ["src"]
 python_version = "3.11"
+
+# sqlite-vec ships no py.typed marker or stubs. It is imported in exactly one place
+# (gaveta.db.session, to load the extension); ignore its missing types rather than
+# weaken strict mode everywhere.
+[[tool.mypy.overrides]]
+module = "sqlite_vec"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
