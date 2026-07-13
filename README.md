@@ -19,9 +19,10 @@ $ gaveta f "how did I connect to the qa database?"
 1. [command] SSH tunnel to qa RDS   →  gaveta show 42 · -c to copy
 ```
 
-☝️ That is the destination. **What actually runs today** captures, classifies (with a local
-model), lists, shows, reclassifies, removes, and exports — but not yet the semantic `f`
-search — see [What works right now](#what-works-right-now).
+☝️ That is the destination, and as of Stage 5 most of it runs. **What actually runs today**
+captures, classifies (with a local model), lists, shows, reclassifies, removes, exports, and
+**finds by meaning** (`gaveta f`, with `-c` to copy the best hit) — see
+[What works right now](#what-works-right-now).
 
 ## Security model (read this first)
 
@@ -47,11 +48,12 @@ stage. Nothing below is stable until `v1.0.0`.
 
 ## What works right now
 
-**Stage 4 — local classification.** Captures are stored in a local SQLite database at
+**Stage 5 — semantic retrieval.** Captures are stored in a local SQLite database at
 `~/.gaveta/gaveta.db`, the deterministic secret gate scans every capture before it is
-written, and **a local model now classifies each capture** — its type (`link` / `command`
-/ `note`), a title, tags, and the clean copyable `content`. No Ollama? Gaveta degrades to
-heuristics and never blocks a capture; `gaveta retag <id>` upgrades it later.
+written, a local model classifies each capture — its type (`link` / `command` / `note`), a
+title, tags, and the clean copyable `content` — and **`gaveta f "query"` finds items by
+meaning**. No Ollama? Gaveta degrades to heuristics and never blocks a capture; `gaveta
+retag <id>` upgrades it later.
 
 ```
 $ gaveta "ssh -L 5432:rds-qa:5432 jump-host  # tunnel to qa database"
@@ -74,6 +76,26 @@ $ gaveta show 1
 The three layers: `raw` is everything you typed, `content` is the copyable part
 (the bare command here), `title` is the readable label. `content` is null for plain prose.
 Ran the capture before Ollama was up? `gaveta retag 1` re-classifies it in place.
+
+**Find it back by meaning.** `gaveta reindex` embeds the drawer; `gaveta f "query"` returns
+the closest hits, and `-c` copies the best hit's payload straight to your clipboard:
+
+```
+$ gaveta reindex
+✓ reindexed · embedded 1 of 1
+
+$ gaveta f "how did I reach the qa database?"
+     1  command         SSH tunnel to qa database
+
+$ gaveta f "qa tunnel" -c
+✓ copied to clipboard · ssh -L 5432:rds-qa:5432 jump-host
+```
+
+Ranking is hybrid — keyword (FTS5) fused with vector similarity — and it degrades honestly:
+where the `sqlite-vec` extension cannot load (common on Homebrew/pyenv Pythons) or Ollama is
+absent, `f` runs **keyword-only** and says so on stderr, never crashing. A freshly captured
+item is keyword-searchable at once and semantically searchable after the next `reindex`. See
+[docs/search.md](docs/search.md) for the ranking, honestly.
 
 Pipe it instead, with `-` or on its own — the two are equivalent:
 
@@ -134,9 +156,10 @@ Three things worth knowing:
 
 - **`gv` is an alias for `gaveta`.** Both commands are installed and point at the same
   entry point, so `gv ls` and `gv "some text"` work with less typing.
-- **Reserved words.** `f`, `reindex`, `cred`, `daemon`, and `ui` are reserved for the
-  stages that implement them; `gaveta f "query"` exits with a message naming its stage
-  rather than capturing "f". To capture a reserved word as text, use `gaveta -- "f"`.
+- **Reserved words.** `cred`, `daemon`, and `ui` are reserved for the stages that implement
+  them; `gaveta cred x` exits with a message naming its stage rather than capturing "cred".
+  To capture a reserved word as text, use `gaveta -- "cred"`. (`f` and `reindex` are live as
+  of Stage 5.)
 - **Text starting with a dash.** A bare `-L` looks like an option to any argument parser.
   Quoted text with a space (`gaveta "ssh -L 5432"`) is fine; a lone dash token needs
   `gaveta -- "-L"`, or pipe it in.
@@ -156,7 +179,8 @@ The rest of the destination, not yet implemented. See
 | `echo "..." \| gaveta -` | Capture from stdin / clipboard pipe | ✅ works |
 | `gaveta ls [type]` | Browse by category | ✅ works |
 | `gaveta show <id>` · `retag <id>` · `rm <id>` · `export` | Inspect, reclassify, remove, back up | ✅ works |
-| `gaveta f "query"` | Semantic find (`-c` copies best hit to clipboard) | Stage 5 |
+| `gaveta f "query"` | Semantic find (`-c` copies best hit to clipboard) | ✅ works |
+| `gaveta reindex` | Backfill embeddings for the drawer | ✅ works |
 | `gaveta cred <name>` | Resolve a credential ref → vault → clipboard (auto-clear) | Stage 6 |
 | `gaveta cred --new` | Create a vault entry + save its reference | Stage 6 |
 | `gaveta ui` | Open the local web view | Stage 8 |
@@ -169,7 +193,8 @@ The rest of the destination, not yet implemented. See
   and never blocks a capture. To enable it, install Ollama and pull the default model:
 
   ```bash
-  ollama pull qwen2.5:3b-instruct
+  ollama pull qwen2.5:3b-instruct   # classification
+  ollama pull nomic-embed-text      # semantic search (gaveta f)
   ```
 
 - Bitwarden CLI (`bw`) or KeePassXC (`keepassxc-cli`) for the credentials flow (optional)
@@ -182,13 +207,16 @@ error (exit `2`). Gaveta never talks to a non-local model.
 
 ```toml
 [model]
-name     = "qwen2.5:3b-instruct"   # any model you have pulled in Ollama
-endpoint = "http://localhost:11434"  # must be localhost
-timeout  = 2.5                       # seconds; a slower answer falls back to heuristics
+name            = "qwen2.5:3b-instruct"  # classification model (any you have pulled)
+embedding_model = "nomic-embed-text"     # semantic-search model for `gaveta f`
+endpoint        = "http://localhost:11434"  # must be localhost
+timeout         = 2.5                    # seconds; a slower answer falls back to heuristics
 ```
 
 Classification runs synchronously at capture with that hard timeout: if the model cannot
-answer in time, Gaveta saves with heuristics and you can `gaveta retag <id>` later.
+answer in time, Gaveta saves with heuristics and you can `gaveta retag <id>` later. Changing
+`embedding_model` means the stored vectors no longer match, so it is a full `gaveta reindex`
+(and a model whose vectors are a different width is refused rather than stored).
 
 ## Development quickstart
 

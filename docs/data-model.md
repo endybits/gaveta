@@ -1,6 +1,7 @@
 # Data model
 
-Gaveta stores captures in a local SQLite database. There is one table today, `items`.
+Gaveta stores captures in a local SQLite database. The `items` table is the drawer; two
+more objects support search (`item_embeddings` and the `items_fts` / `vec_items` indexes).
 Everything here is created and evolved by Alembic migrations — see
 [ADR-002](adr/ADR-002-persistence-and-time.md) for why, and for the two decisions that
 shape this model most.
@@ -67,6 +68,38 @@ is storage-only, the vault's business (Stage 6), never a live classification. `u
 the degraded label a capture would carry only if classification produced nothing usable;
 in practice even the heuristic floor never leaves a capture `unknown`. The two vocabularies
 are joined in one place, `gaveta.mapping`.
+
+## Search: `item_embeddings`, and the FTS5 / vector indexes
+
+Stage 5's `gaveta f` ranks by meaning. Three objects support it; see
+[docs/search.md](search.md) for how they rank and [ADR-005](adr/ADR-005-semantic-retrieval.md)
+for the decisions.
+
+**`item_embeddings`** — the portable source of truth for embeddings, one row per item:
+
+| Column | Type | Notes |
+|---|---|---|
+| `item_id` | INTEGER PK, FK → `items.id` | One embedding per item, cascade-deleted with it. |
+| `model` | TEXT NOT NULL | The embedding model that produced the vector. |
+| `dim` | INTEGER NOT NULL | Its dimension — a mismatch is refused at `reindex`, not stored. |
+| `vector` | BLOB NOT NULL | The float32 vector, the one encoding shared with the index. |
+| `created_at` | DATETIME NOT NULL | UTC. |
+
+This is an ordinary table, present on **every** machine, written by `reindex`. It exists so
+embeddings survive on a machine that cannot query them and can be rebuilt into the vector
+index on one that can — without re-contacting Ollama.
+
+**`items_fts`** — a standard FTS5 virtual table indexing each item's `raw`, `title`,
+`content`, and `tags`, kept in sync by triggers on `items` (the first migration to use raw
+SQL, and the only place raw SQL lives in the schema). It is the keyword-search floor and
+works on every machine.
+
+**`vec_items`** — the `sqlite-vec` vector index. Unlike the tables above it is **not created
+by a migration**: it is a rebuildable cache created lazily, and only where the `sqlite-vec`
+extension can load (which depends on how the Python interpreter's `sqlite3` was built).
+Migrations contain only DDL that runs identically everywhere, so this machine-dependent
+object stays out of the chain. All three are excluded from the model/migration drift check
+by a shared prefix predicate.
 
 ## Time
 

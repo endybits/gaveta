@@ -12,6 +12,39 @@ and are called out under a **Breaking** heading.
 
 ## [Unreleased]
 
+### Added
+
+- **`gaveta f "query"` — semantic retrieval.** Finds items by meaning, best first, printing a
+  hit list of id, type, and title. Ranking is hybrid: an FTS5 keyword search fused with a
+  vector search by reciprocal rank fusion, where a model and the vector index are both
+  available. `-c` copies the best hit's paste-ready payload — its `content` when present, else
+  the raw capture — to the clipboard, printing the payload instead where no clipboard backend
+  exists. `--json` emits an array of hits (`id`, `type`, `title`, `matched_on`). A search that
+  matches nothing exits 0 with a notice on stderr — finding nothing is not an error.
+- **`gaveta reindex` — embedding backfill.** Embeds every item that lacks one, reports
+  `embedded N of M`, and is idempotent. It heals items captured while Ollama was down and
+  re-embeds items whose text a `retag` changed.
+- **Embeddings via a local Ollama embedding model** (default `nomic-embed-text`), stored in a
+  new `item_embeddings` table and, where the `sqlite-vec` extension loads, mirrored into a
+  `vec_items` vector index. The embedding model is configurable under `[model].embedding_model`
+  in `config.toml`.
+- **`f` and `reindex` move from reserved words to implemented commands.** `cred`, `daemon`, and
+  `ui` remain reserved (they still exit `2`).
+- New wire contract `SearchHit` (`id`, `type`, `title`, `matched_on`), snapshot-tested like the
+  others. The existing `CaptureRequest` and `ItemView` schemas are unchanged.
+
+### Degraded modes (honest limits)
+
+- **`sqlite-vec` is a loadable native extension** and loads only where the Python interpreter's
+  `sqlite3` was built with extension loading enabled — Homebrew and pyenv Pythons commonly are
+  not. Where it cannot load, retrieval runs **keyword-only (FTS5)**, clearly signalled on
+  stderr, and never crashes. Embeddings are still stored, so a drawer copied to a capable
+  machine rebuilds the vector index without re-embedding.
+- **Ollama is optional.** With no model, capture and search still work: capture is classified by
+  the heuristic floor and searched by keyword; `reindex` embeds nothing and heals later. A
+  freshly captured item is keyword-searchable immediately and semantically searchable after the
+  next `reindex`.
+
 ### Changed
 
 - **Sharper classification prompt** (Ollama path). Revised after live testing on
