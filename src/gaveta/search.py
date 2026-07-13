@@ -190,6 +190,48 @@ class InMemoryVectorStore:
         return scored[:k]
 
 
+class Vec0Store:
+    """The sqlite-vec adapter, used only where the extension loaded.
+
+    Lazily creates the `vec_items` virtual table (it is a machine-dependent cache,
+    never a migration) and stores/queries vectors through it. Constructed with the
+    width the vec0 schema is declared for; `core.reindex` and `core.find` build one
+    only when `vectors_available()` is true, so the raw SQL here never runs where the
+    extension is absent. See docs/adr/ADR-005-semantic-retrieval.md.
+    """
+
+    def __init__(self, session: Session, *, dim: int) -> None:
+        self._session = session
+        self._dim = dim
+        self._session.execute(
+            text(
+                f"CREATE VIRTUAL TABLE IF NOT EXISTS vec_items "
+                f"USING vec0(embedding float[{dim}])"
+            )
+        )
+
+    def upsert(self, item_id: int, vector: list[float]) -> None:
+        # vec0 has no UPSERT; delete-then-insert keeps one row per item.
+        self._session.execute(
+            text("DELETE FROM vec_items WHERE rowid = :id"), {"id": item_id}
+        )
+        self._session.execute(
+            text("INSERT INTO vec_items(rowid, embedding) VALUES (:id, :v)"),
+            {"id": item_id, "v": serialize_vector(vector)},
+        )
+
+    def search(self, query: list[float], k: int) -> list[tuple[int, float]]:
+        """The `k` nearest item ids to `query` by vec0 distance, best first."""
+        rows = self._session.execute(
+            text(
+                "SELECT rowid, distance FROM vec_items "
+                "WHERE embedding MATCH :v AND k = :k ORDER BY distance"
+            ),
+            {"v": serialize_vector(query), "k": k},
+        ).fetchall()
+        return [(row[0], float(row[1])) for row in rows]
+
+
 # ── Database-backed helpers (still interface-agnostic; they take a Session) ────
 
 

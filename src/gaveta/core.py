@@ -16,10 +16,11 @@ from gaveta import gate, search
 from gaveta.brain import Classifier, Embedder, make_classifier, make_embedder
 from gaveta.config import EMBEDDING_DIM, load_config
 from gaveta.db.models import Item, ItemEmbedding, ItemType
+from gaveta.db.session import vectors_available
 from gaveta.gate import Verdict
 from gaveta.mapping import now_utc, to_item, to_view
 from gaveta.models import CaptureRequest, ItemView
-from gaveta.search import SearchResult, VectorStore
+from gaveta.search import SearchResult, Vec0Store, VectorStore
 
 
 class BlockedCapture(Exception):
@@ -189,6 +190,18 @@ def export_items(*, session: Session) -> list[ItemView]:
     return [to_view(item) for item in session.scalars(query)]
 
 
+def _default_store(session: Session) -> VectorStore:
+    """The vector backend for this session: the sqlite-vec index where the extension
+    loaded, else an in-memory store rebuilt from `item_embeddings`.
+
+    Either way the stored vectors in `item_embeddings` are the source of truth; the
+    difference is only whether the fast native index is available (ADR-005).
+    """
+    if vectors_available():
+        return Vec0Store(session, dim=EMBEDDING_DIM)
+    return search.load_vector_store(session)
+
+
 def find(
     query: str,
     *,
@@ -210,7 +223,7 @@ def find(
     to `make_embedder()`; both are injected so tests drive the whole path with fakes.
     """
     embedder = embedder or make_embedder()
-    store = store if store is not None else search.load_vector_store(session)
+    store = store if store is not None else _default_store(session)
 
     try:
         fts_ranked = search.fts_search(session, query, limit)
@@ -253,12 +266,14 @@ def reindex(
     dimension is baked into the index, so a mismatch is refused, not truncated
     (ADR-005).
 
-    `store` is the vector index to also populate where one is available (the
-    sqlite-vec adapter); when `None`, only `item_embeddings` is written, which is
-    enough for search on a machine that rebuilds an in-memory store from it.
+    `store` defaults to the sqlite-vec index where the extension loaded, and to nothing
+    where it did not — there, only `item_embeddings` is written, which is all a rebuilt
+    in-memory store needs. Tests inject a store to assert what got upserted.
     """
     embedder = embedder or make_embedder()
     config = load_config()
+    if store is None and vectors_available():
+        store = Vec0Store(session, dim=EMBEDDING_DIM)
 
     embedded_ids = set(session.scalars(select(ItemEmbedding.item_id)))
     all_ids = list(session.scalars(select(Item.id).order_by(Item.id)))
