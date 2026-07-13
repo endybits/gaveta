@@ -1,7 +1,8 @@
 """The subcommand surface, driven through `main(argv)` in-process.
 
-These assert exit codes and the shape of stdout/stderr. The persistence-across-processes
-claims live in their own file; here the point is the command dispatch and its contracts.
+These assert exit codes and the shape of stdout/stderr. The
+persistence-across-processes claims live in their own file; here the point is the
+command dispatch and its contracts.
 """
 
 import json
@@ -39,7 +40,8 @@ def test_ls_filters_by_type(capsys: pytest.CaptureFixture[str]) -> None:
     _capture("a note")
     capsys.readouterr()
 
-    # No captures are `command` yet (classification is Stage 4), so the filter is empty.
+    # No captures are `command` yet (classification is Stage 4), so the filter is
+    # empty.
     assert main(["ls", "command"]) == 0
     assert capsys.readouterr().out == ""
 
@@ -288,3 +290,59 @@ def test_reindex_is_idempotent_across_runs(
     assert main(["reindex"]) == 0
     capsys.readouterr()
     assert main(["reindex"]) == 0  # a second run does not fail
+
+
+# --- f -c (clipboard) --------------------------------------------------------
+
+
+def test_f_c_copies_content_when_present(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A lone URL classifies with content = the bare URL; -c copies that, not raw."""
+    from gaveta import clipboard
+
+    copied: list[str] = []
+    monkeypatch.setattr(clipboard, "_copy_fn", copied.append)
+
+    _capture("https://docs.astral.sh/uv/")
+    capsys.readouterr()
+
+    assert main(["f", "uv", "-c"]) == 0
+    assert copied == ["https://docs.astral.sh/uv/"]
+    assert "copied to clipboard" in capsys.readouterr().out
+
+
+def test_f_c_falls_back_to_raw_when_no_content(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Prose has no extracted content, so -c copies the raw capture instead."""
+    from gaveta import clipboard
+
+    copied: list[str] = []
+    monkeypatch.setattr(clipboard, "_copy_fn", copied.append)
+
+    _capture("una nota sobre el almuerzo del equipo")
+    capsys.readouterr()
+
+    assert main(["f", "almuerzo", "-c"]) == 0
+    assert copied == ["una nota sobre el almuerzo del equipo"]
+
+
+def test_f_c_prints_the_payload_when_no_clipboard_backend(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The CI path: no backend, so -c prints the payload on stdout under a verb."""
+    from gaveta import clipboard
+
+    def no_backend(_text: str) -> None:
+        raise RuntimeError("no clipboard")
+
+    monkeypatch.setattr(clipboard, "_copy_fn", no_backend)
+
+    _capture("https://example.com/thing")
+    capsys.readouterr()
+
+    assert main(["f", "thing", "-c"]) == 0
+    out = capsys.readouterr().out
+    assert "no clipboard" in out
+    assert "https://example.com/thing" in out

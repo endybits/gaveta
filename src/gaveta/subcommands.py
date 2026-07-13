@@ -12,7 +12,7 @@ import argparse
 import sys
 from collections.abc import Callable
 
-from gaveta import core
+from gaveta import clipboard, core
 from gaveta.brain import make_classifier, make_embedder
 from gaveta.config import ConfigError, load_config
 from gaveta.db.models import ItemType
@@ -21,6 +21,7 @@ from gaveta.db.session import vectors_available
 from gaveta.exit_codes import ExitCode
 from gaveta.mapping import to_search_hit
 from gaveta.render import (
+    render_copied,
     render_item,
     render_json,
     render_json_list,
@@ -150,12 +151,16 @@ def _export(args: list[str]) -> int:
 
 
 def _f(args: list[str]) -> int:
-    """`gaveta f "query" [--json]` — find items by meaning, best first.
+    """`gaveta f "query" [-c] [--json]` — find items by meaning, best first.
 
     Runs the FTS5 keyword search always, fused with a vector search where a model and
     the sqlite-vec index are both available. When the vector index cannot load, a
     one-line notice goes to *stderr* (so `f --json` and `f | …` stay clean) and
     retrieval is keyword-only.
+
+    `-c` copies the best hit's payload — its `content` when present, else `raw` — to
+    the clipboard, and prints one line echoing it; where no clipboard backend exists,
+    the same payload is printed instead (the fallback that keeps `-c` usable in CI).
 
     A search that matches nothing is not an error: it prints a "no matches" notice to
     stderr, an empty JSON array under `--json`, and exits 0 — like `ls` on an empty
@@ -164,6 +169,12 @@ def _f(args: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="gaveta f", add_help=True)
     parser.add_argument("query", help="what to look for, by meaning")
     parser.add_argument("--json", action="store_true", dest="json_out")
+    parser.add_argument(
+        "-c",
+        action="store_true",
+        dest="copy",
+        help="copy the best hit's payload (content, else raw) to the clipboard",
+    )
     parsed = parser.parse_args(args)
 
     # A broken config.toml is a usage error, before any work — as on the capture path.
@@ -185,10 +196,24 @@ def _f(args: list[str]) -> int:
             file=sys.stderr,
         )
 
-    hits = [to_search_hit(r) for r in results]
-    if not hits:
+    if not results:
         print(f"[gaveta] no matches for {parsed.query!r}", file=sys.stderr)
+        # Under --json, empty stdout is still valid: an empty array.
+        if parsed.json_out:
+            _emit(render_search_json([]))
+        return ExitCode.OK
 
+    if parsed.copy:
+        # The promise of retrieval is paste-ready output: the bare payload, not the
+        # prose around it. content when the classifier extracted one, else the raw
+        # capture.
+        best = results[0].item
+        payload = best.content if best.content else best.raw
+        landed = clipboard.copy(payload)
+        _emit(render_copied(payload, to_clipboard=landed))
+        return ExitCode.OK
+
+    hits = [to_search_hit(r) for r in results]
     _emit(render_search_json(hits) if parsed.json_out else render_search(hits))
     return ExitCode.OK
 
