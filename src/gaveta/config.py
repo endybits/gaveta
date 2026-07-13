@@ -24,6 +24,14 @@ DEFAULT_MODEL = "qwen2.5:3b-instruct"
 DEFAULT_ENDPOINT = "http://localhost:11434"
 DEFAULT_TIMEOUT = 2.5
 
+# The ADR-005 default embedding model, and the dimension it produces. `nomic-embed-text`
+# is a small retrieval-trained model that `ollama pull`s cleanly and handles bilingual
+# input. The dimension is baked into the `vec_items` schema, so it is a constant, not a
+# config knob: changing the embedding model is a full reindex, and a model whose vectors
+# are not `EMBEDDING_DIM` wide is refused rather than allowed to corrupt the index.
+DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
+EMBEDDING_DIM = 768
+
 # The hosts a configured endpoint may name. Anything else is refused: the classifier
 # only ever dials the local machine (ADR-004, layer-4 containment). Mirrors the
 # architecture test's list, enforced here so the property holds at runtime, not just CI.
@@ -44,11 +52,17 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class ModelConfig:
-    """The `[model]` block, resolved. A frozen value with validated defaults."""
+    """The `[model]` block, resolved. A frozen value with validated defaults.
+
+    One block serves both the classifier (`name`) and the embedder (`embedding_model`),
+    which share an endpoint and a timeout. Constructed by keyword everywhere, so adding
+    a field with a default breaks no caller.
+    """
 
     name: str = DEFAULT_MODEL
     endpoint: str = DEFAULT_ENDPOINT
     timeout: float = DEFAULT_TIMEOUT
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL
 
 
 def _require_localhost(endpoint: str) -> None:
@@ -86,11 +100,16 @@ def load_config() -> ModelConfig:
     name = model.get("name", DEFAULT_MODEL)
     endpoint = model.get("endpoint", DEFAULT_ENDPOINT)
     timeout = model.get("timeout", DEFAULT_TIMEOUT)
+    embedding_model = model.get("embedding_model", DEFAULT_EMBEDDING_MODEL)
 
     if not isinstance(name, str) or not name:
         raise ConfigError(f"[model].name in {path} must be a non-empty string")
     if not isinstance(endpoint, str) or not endpoint:
         raise ConfigError(f"[model].endpoint in {path} must be a non-empty string")
+    if not isinstance(embedding_model, str) or not embedding_model:
+        raise ConfigError(
+            f"[model].embedding_model in {path} must be a non-empty string"
+        )
     # bool is an int subclass; reject it so `timeout = true` is not silently read as 1.
     if (
         isinstance(timeout, bool)
@@ -100,4 +119,9 @@ def load_config() -> ModelConfig:
         raise ConfigError(f"[model].timeout in {path} must be a positive number")
 
     _require_localhost(endpoint)
-    return ModelConfig(name=name, endpoint=endpoint, timeout=float(timeout))
+    return ModelConfig(
+        name=name,
+        endpoint=endpoint,
+        timeout=float(timeout),
+        embedding_model=embedding_model,
+    )

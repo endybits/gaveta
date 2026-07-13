@@ -36,3 +36,17 @@ class Classifier(Protocol):
     """
 
     def classify(self, text: str) -> Classification: ...
+
+
+class Embedder(Protocol):
+    """The seam. `embed(text) -> vector | None`.
+
+    Returns the embedding as a list of floats, or `None` when no model is reachable — an
+    embedder that cannot answer says so rather than raising. There is no heuristic floor
+    for embeddings (unlike classification): a missing vector is not a wrong guess, it is
+    a gap that `reindex` heals the next time a model is up. `reindex` skips an item
+    whose embedder returns `None`, so a drawer captured while Ollama was down becomes
+    semantically searchable later, never blocking or crashing in the meantime.
+    """
+
+    def embed(self, text: str) -> list[float] | None: ...
