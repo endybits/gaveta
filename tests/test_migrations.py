@@ -316,3 +316,56 @@ def test_the_fts5_index_is_removed_on_downgrade() -> None:
     tables = _tables(database_url())
     assert "items_fts" not in tables
     assert "items" in tables
+
+
+# --- item_embeddings side table ----------------------------------------------
+
+
+def test_the_item_embeddings_table_cascades_when_its_item_is_deleted() -> None:
+    """One embedding per item, gone when the item is gone — the FK cascade.
+
+    Deleting an item must not orphan its embedding row. SQLite enforces the cascade only
+    when foreign keys are on, which is how the app runs; assert the behavior directly.
+    """
+    command.upgrade(alembic_config(), "head")
+
+    engine = create_engine(database_url())
+    try:
+        with engine.begin() as connection:
+            connection.execute(sa.text("PRAGMA foreign_keys = ON"))
+            _insert_item(connection, raw="a command")
+            connection.execute(
+                sa.text(
+                    "INSERT INTO item_embeddings (item_id, model, dim, vector, "
+                    "created_at) VALUES (1, 'nomic-embed-text', 3, :v, '2026-01-01')"
+                ),
+                {"v": b"\x00\x01\x02"},
+            )
+            assert (
+                connection.execute(
+                    sa.text("SELECT count(*) FROM item_embeddings")
+                ).scalar_one()
+                == 1
+            )
+
+            connection.execute(sa.text("DELETE FROM items WHERE id = 1"))
+
+            assert (
+                connection.execute(
+                    sa.text("SELECT count(*) FROM item_embeddings")
+                ).scalar_one()
+                == 0
+            )
+    finally:
+        engine.dispose()
+
+
+def test_the_item_embeddings_table_is_removed_on_downgrade() -> None:
+    """The downgrade drops the side table, leaving the FTS5 revision's schema."""
+    config = alembic_config()
+    command.upgrade(config, "head")
+    assert "item_embeddings" in _tables(database_url())
+
+    command.downgrade(config, "a1f2c3d4e5f6")
+
+    assert "item_embeddings" not in _tables(database_url())

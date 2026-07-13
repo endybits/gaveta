@@ -9,7 +9,7 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import Index, MetaData, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, LargeBinary, MetaData, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from gaveta.db.types import JsonList, UtcDateTime
@@ -108,3 +108,43 @@ class Item(Base):
 
     def __repr__(self) -> str:
         return f"Item(id={self.id!r}, type={self.type!r}, raw={self.raw[:32]!r})"
+
+
+class ItemEmbedding(Base):
+    """One item's embedding vector — the *source of truth*, not the vector index.
+
+    The load-bearing choice of Stage 5 (ADR-005). The sqlite-vec index (`vec_items`) is
+    a loadable native extension that many Python builds — including the author's —
+    cannot load at all, so it is treated as a rebuildable cache. Embeddings are stored
+    *here*, an ordinary table present and writable on every machine, so that a drawer
+    copied to a vec-capable machine can rebuild `vec_items` from these blobs without
+    re-embedding through Ollama. `reindex` embeds every `Item` that lacks a row here.
+
+    One row per item (`item_id` is both primary key and foreign key), deleted with its
+    item. A writer that changes the embedded text (`retag`) deletes the row so `reindex`
+    re-makes it — invalidation travels with the mutation.
+    """
+
+    __tablename__ = "item_embeddings"
+
+    # PK *and* FK: exactly one embedding per item, gone when the item is gone.
+    item_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("items.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    # The model that produced the vector, and its dimension. Recorded so a later reindex
+    # under a different embedding model can detect the mismatch (a different `dim` means
+    # the stored blobs no longer fit vec_items) rather than corrupt the index.
+    model: Mapped[str] = mapped_column(String(200), nullable=False)
+    dim: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # The raw float32 vector, serialized to bytes. The one encoding shared by this table
+    # and the vec_items adapter; a mismatch would produce wrong distances with no error.
+    vector: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"ItemEmbedding(item_id={self.item_id!r}, model={self.model!r})"
