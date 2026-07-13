@@ -48,6 +48,11 @@ dependencies = [
   # with extension loading enabled — where it cannot, retrieval degrades to FTS5-only
   # and this is dormant. See docs/adr/ADR-005-semantic-retrieval.md.
   "sqlite-vec>=0.1",
+  # Clipboard for `gaveta f -c` (Stage 5): copies the best hit's payload. It shells out
+  # to the platform clipboard and imports no network library, so the fence holds. Where
+  # no clipboard backend exists (a headless CI runner), it raises and the seam prints the
+  # payload instead — the fallback is the CI-tested path. See ADR-005.
+  "pyperclip>=1",
 ]
 
 [project.urls]
@@ -98,11 +103,11 @@ strict = true
 files = ["src"]
 python_version = "3.11"
 
-# sqlite-vec ships no py.typed marker or stubs. It is imported in exactly one place
-# (gaveta.db.session, to load the extension); ignore its missing types rather than
-# weaken strict mode everywhere.
+# sqlite-vec and pyperclip ship no py.typed marker or stubs. Each is imported in exactly
+# one fenced place (gaveta.db.session and gaveta.clipboard); ignore their missing types
+# rather than weaken strict mode everywhere.
 [[tool.mypy.overrides]]
-module = "sqlite_vec"
+module = ["sqlite_vec", "pyperclip"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

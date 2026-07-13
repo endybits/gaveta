@@ -203,6 +203,19 @@ def render_search_json(hits: list[SearchHit]) -> str:
     return json.dumps([json.loads(hit.model_dump_json()) for hit in hits], indent=2)
 
 
+def render_copied(payload: str, *, to_clipboard: bool) -> str:
+    """`f -c`'s confirmation, one line, echoing what was copied.
+
+        ✓ copied to clipboard · ssh -L 5432:rds-qa:5432 jump
+
+    When no clipboard backend is available (a headless machine), the same payload is
+    printed under a different verb, so a script can still capture it from stdout — the
+    fallback that makes `-c` usable in CI. The payload is flattened to one line.
+    """
+    verb = "copied to clipboard" if to_clipboard else "no clipboard · payload"
+    return f"✓ {verb} · {_shorten(payload, _LIST_RAW_WIDTH)}"
+
+
 def render_reindexed(embedded: int, total: int) -> str:
     """`reindex`'s confirmation: how many of the drawer's items were embedded this run.
 
