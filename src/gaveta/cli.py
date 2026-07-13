@@ -41,10 +41,11 @@ _SUSPICIOUS_NON_TTY = (
 _DESCRIPTION = "Capture text into your drawer, or manage what you have captured."
 
 _EPILOG = (
-    "Commands:  ls [type] · show <id> · retag <id> · rm <id> · export\n"
+    "Commands:  f <query> · reindex · ls [type] · show <id> · retag <id> · "
+    "rm <id> · export\n"
     "A bare dash token (-L) is read as an option; put it after `--` to capture it,\n"
     'e.g.  gaveta -- "-L". Quoted text containing a space ("ssh -L 5432") is fine.\n'
-    "Reserved for later stages: f, reindex, cred, daemon, ui."
+    "Reserved for later stages: cred, daemon, ui."
 )
 
 
@@ -105,8 +106,9 @@ def main(argv: list[str] | None = None) -> int:
     Dispatch order, all keyed on the first token only (so `gaveta "ls my files"` stays
     text):
 
-    1. An implemented subcommand (`ls`/`show`/`rm`/`export`) → its handler.
-    2. A still-reserved word (`f`, `cred`, …) → usage, exit 2.
+    1. An implemented subcommand (`f`/`reindex`/`ls`/`show`/`rm`/`export`/`retag`) →
+       its handler.
+    2. A still-reserved word (`cred`, `daemon`, `ui`) → usage, exit 2.
     3. Anything else → capture.
     """
     tokens = list(sys.argv[1:] if argv is None else argv)

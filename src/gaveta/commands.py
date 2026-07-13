@@ -12,9 +12,11 @@ from collections.abc import Mapping
 from types import MappingProxyType
 
 # The implemented subcommands. They dispatch; they are no longer reserved words that
-# exit 2. `retag` joined here in Stage 4. The set is a frozenset because membership is
-# all the CLI asks.
-IMPLEMENTED: frozenset[str] = frozenset({"ls", "show", "rm", "export", "retag"})
+# exit 2. `retag` joined here in Stage 4; `f` and `reindex` in Stage 5. The set is a
+# frozenset because membership is all the CLI asks.
+IMPLEMENTED: frozenset[str] = frozenset(
+    {"ls", "show", "rm", "export", "retag", "f", "reindex"}
+)
 
 # The rest — mapped to the stage that implements each. Read-only so a caller cannot
 # mutate it. A word leaves this table for `IMPLEMENTED` when its stage lands.
@@ -25,8 +27,6 @@ IMPLEMENTED: frozenset[str] = frozenset({"ls", "show", "rm", "export", "retag"})
 # does not contain. ADR-001 records this.
 RESERVED: Mapping[str, int] = MappingProxyType(
     {
-        "f": 5,
-        "reindex": 5,
         "cred": 6,
         "daemon": 7,
         "ui": 8,

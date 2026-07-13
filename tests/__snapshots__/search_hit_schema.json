@@ -1,0 +1,52 @@
+{
+  "$defs": {
+    "ItemType": {
+      "enum": [
+        "link",
+        "command",
+        "note",
+        "credential_ref",
+        "unknown"
+      ],
+      "title": "ItemType",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "integer"
+    },
+    "matched_on": {
+      "enum": [
+        "keyword",
+        "semantic",
+        "both"
+      ],
+      "title": "Matched On",
+      "type": "string"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Title"
+    },
+    "type": {
+      "$ref": "#/$defs/ItemType"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "title",
+    "matched_on"
+  ],
+  "title": "SearchHit",
+  "type": "object"
+}

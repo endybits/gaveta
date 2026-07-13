@@ -213,3 +213,78 @@ def test_export_of_an_empty_drawer_is_an_empty_array(
 ) -> None:
     assert main(["export"]) == 0
     assert json.loads(capsys.readouterr().out) == []
+
+
+# --- f (search) --------------------------------------------------------------
+
+
+def test_f_finds_a_capture_by_keyword_and_exits_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The acceptance path: capture, then `f` returns the item (FTS5, no Ollama)."""
+    _capture("para el tunel al rds de qa: ssh -L 5432:rds-qa:5432 jump")
+    capsys.readouterr()
+
+    assert main(["f", "tunel"]) == 0
+    out = capsys.readouterr().out
+    assert "tunel" in out or "rds" in out.lower()
+
+
+def test_f_json_emits_an_array_of_hits(capsys: pytest.CaptureFixture[str]) -> None:
+    _capture("ssh tunnel to the qa rds database")
+    capsys.readouterr()
+
+    assert main(["f", "tunnel", "--json"]) == 0
+    out, err = capsys.readouterr()
+    hits = json.loads(out)  # stdout is clean JSON even though a notice went to stderr
+    assert hits and hits[0]["matched_on"] in ("keyword", "semantic", "both")
+
+
+def test_f_no_match_exits_zero_with_a_stderr_notice(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Found nothing is not an error: exit 0, empty stdout, notice on stderr."""
+    _capture("a note about coffee")
+    capsys.readouterr()
+
+    assert main(["f", "zzz-no-match"]) == 0
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert "no matches" in err
+
+
+def test_f_signals_keyword_only_mode_on_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """This machine cannot load sqlite-vec, so `f` always warns it is keyword-only."""
+    _capture("something findable")
+    capsys.readouterr()
+
+    main(["f", "findable"])
+    assert "vector index unavailable" in capsys.readouterr().err
+
+
+# --- reindex -----------------------------------------------------------------
+
+
+def test_reindex_reports_a_count_and_exits_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """With no Ollama, nothing embeds, but reindex still succeeds and reports it."""
+    _capture("one")
+    _capture("two")
+    capsys.readouterr()
+
+    assert main(["reindex"]) == 0
+    assert "reindexed" in capsys.readouterr().out
+
+
+def test_reindex_is_idempotent_across_runs(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _capture("only item")
+    capsys.readouterr()
+
+    assert main(["reindex"]) == 0
+    capsys.readouterr()
+    assert main(["reindex"]) == 0  # a second run does not fail
