@@ -12,6 +12,16 @@ and are called out under a **Breaking** heading.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-12
+
+Stage 5 — semantic retrieval. `gaveta f "query"` finds items by meaning, ranked by an FTS5
+keyword search fused with a vector search (reciprocal rank fusion) where a local embedding
+model and the `sqlite-vec` index are available; `-c` copies the best hit's payload to the
+clipboard. `gaveta reindex` backfills embeddings. The load-bearing honesty of this stage:
+`sqlite-vec` is a loadable native extension that many Python builds cannot load, so
+keyword-only retrieval is a first-class, clearly-signalled mode — the vectors are stored
+regardless, so they are never lost.
+
 ### Added
 
 - **`gaveta f "query"` — semantic retrieval.** Finds items by meaning, best first, printing a
@@ -249,7 +259,8 @@ Stage 0 — scaffolding & governance. No product behavior yet: `gaveta` prints i
 - The version is read from installed distribution metadata rather than duplicated as a
   literal, so `pyproject.toml` is the single source of truth.
 
-[Unreleased]: https://github.com/endybits/gaveta/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/endybits/gaveta/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/endybits/gaveta/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/endybits/gaveta/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/endybits/gaveta/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/endybits/gaveta/compare/v0.1.0...v0.2.0
