@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gaveta-cli"
-version = "0.4.0"
+version = "0.5.0"
 description = "Everything you need, right where you left it. A local-first, private knowledge drawer for developers."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -118,11 +118,11 @@ addopts = "--cov=gaveta --cov-report=term-missing"
 source = ["gaveta"]
 
 [tool.coverage.report]
-# The floor, not the measured value. Stage 0 measures ~100% (a stub plus smoke
-# tests); pinning it there would fail Stage 1's first real code by definition.
-# This may only ever be raised at a stage close-out, never lowered.
+# The floor, not the measured value. Raised to 95 at the Stage 5 close-out (measured
+# ~97%), a little below the measurement to leave room for a refactor without a red
+# build. This may only ever be raised at a stage close-out, never lowered.
 # See the working agreement in IMPLEMENTATION_PLAN.md.
-fail_under = 90
+fail_under = 95
 show_missing = true
 
 [tool.commitizen]
