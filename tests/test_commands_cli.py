@@ -255,15 +255,27 @@ def test_f_no_match_exits_zero_with_a_stderr_notice(
     assert "no matches" in err
 
 
-def test_f_signals_keyword_only_mode_on_stderr(
+def test_f_signals_keyword_only_mode_when_vectors_are_unavailable(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """This machine cannot load sqlite-vec, so `f` always warns it is keyword-only."""
+    """The keyword-only notice appears iff sqlite-vec could not load — never a crash.
+
+    Whether it loads is a property of the runner's Python, not something the test can
+    assume: a Homebrew/pyenv build cannot load it (notice expected), while an
+    ubuntu-latest or Debian build can (no notice, retrieval is hybrid). Assert against
+    the real capability probe so this holds on both.
+    """
+    from gaveta.db.session import vectors_available
+
     _capture("something findable")
     capsys.readouterr()
 
     main(["f", "findable"])
-    assert "vector index unavailable" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    if vectors_available():
+        assert "vector index unavailable" not in err
+    else:
+        assert "vector index unavailable" in err
 
 
 # --- reindex -----------------------------------------------------------------
